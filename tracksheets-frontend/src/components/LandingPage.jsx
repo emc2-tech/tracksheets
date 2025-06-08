@@ -1,4 +1,4 @@
-// src/components/LandingPage.jsx
+
 import React, { useState } from 'react';
 import { 
   FileText, 
@@ -20,13 +20,17 @@ import {
   ClipboardList
 } from 'lucide-react';
 
-export default function LandingPage() {
+import TrackSheetsApp from './Worksheet';
+
+export default function ExcelLandingPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCommand, setActiveCommand] = useState('New');
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [workbookName, setWorkbookName] = useState('');
   const [showMainApp, setShowMainApp] = useState(false);
+  const [workbookData, setWorkbookData] = useState(null);
+  const [nameCheckStatus, setNameCheckStatus] = useState(null); // 'available', 'exists', 'checking', 'error'
 
   const templates = [
     { 
@@ -132,7 +136,50 @@ export default function LandingPage() {
     }
   };
 
-  // Handle template selection
+  // Check if workbook name is available
+  const checkNameAvailability = async (name) => {
+    if (!name || name.trim().length < 2) {
+      setNameCheckStatus(null);
+      return;
+    }
+
+    try {
+      setNameCheckStatus('checking');
+      
+      const response = await fetch(`http://localhost:5000/api/workbook/check-name/${encodeURIComponent(name.trim())}`);
+      const result = await response.json();
+      
+      if (response.ok) {
+        if (result.available) {
+          setNameCheckStatus('available');
+          console.log(`✅ Name "${name}" is available`);
+        } else {
+          setNameCheckStatus('exists');
+          console.log(`❌ Name "${name}" already exists`);
+        }
+      } else {
+        setNameCheckStatus('error');
+        console.error('Error checking name availability:', result);
+      }
+    } catch (error) {
+      setNameCheckStatus('error');
+      console.error('Failed to check name availability:', error);
+    }
+  };
+
+  // Handle workbook name changes with debounced availability checking
+  const handleWorkbookNameChange = (newName) => {
+    setWorkbookName(newName);
+    
+    // Debounce name checking
+    if (window.nameCheckTimeout) {
+      clearTimeout(window.nameCheckTimeout);
+    }
+    
+    window.nameCheckTimeout = setTimeout(() => {
+      checkNameAvailability(newName);
+    }, 500); // Check after 500ms of no typing
+  };
   const handleTemplateClick = (template) => {
     setSelectedTemplate(template);
     setWorkbookName(`${template.name} - ${new Date().toLocaleDateString()}`);
@@ -147,8 +194,10 @@ export default function LandingPage() {
     }
 
     try {
+      console.log('🚀 Sending workbook creation request to Python backend...');
+      
       // Call Python backend to create workbook
-      const response = await fetch('http://127.0.0.1:5000/api/workbook/create', {
+      const response = await fetch('http://localhost:5000/api/workbook/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,65 +209,110 @@ export default function LandingPage() {
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Workbook created:', result);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('✅ Python backend response:', result);
+        
+        // Store workbook data in state for the main app
+        setWorkbookData(result);
         
         // Close dialog and open main app
         setShowNameDialog(false);
         setShowMainApp(true);
+        
       } else {
-        throw new Error('Failed to create workbook');
+        // Handle different types of errors
+        if (response.status === 409 && result.error === 'workbook_already_exists') {
+          // Workbook already exists error
+          console.log('❌ Workbook already exists:', result);
+          
+          const conflictDetails = result.details;
+          const suggestions = result.suggestions || [];
+          
+          let errorMessage = `❌ Workbook "${workbookName}" already exists!\n\n`;
+          
+          // Add conflict details
+          if (conflictDetails.conflict_type === 'both') {
+            errorMessage += `💾 Found in database AND file system\n`;
+          } else if (conflictDetails.conflict_type === 'database') {
+            errorMessage += `💾 Found in database\n`;
+          } else if (conflictDetails.conflict_type === 'filesystem') {
+            errorMessage += `📁 Found in file system\n`;
+          }
+          
+          // Add existing workbook info if available
+          if (conflictDetails.existing_info?.database?.workbook_info) {
+            const dbInfo = conflictDetails.existing_info.database.workbook_info;
+            errorMessage += `\n📊 Existing workbook:\n- ID: ${dbInfo.id}\n- Created: ${dbInfo.created_at}\n`;
+          }
+          
+          // Add suggestions
+          if (suggestions.length > 0) {
+            errorMessage += `\n💡 Suggestions:\n`;
+            suggestions.forEach((suggestion, index) => {
+              errorMessage += `${index + 1}. ${suggestion}\n`;
+            });
+          }
+          
+          alert(errorMessage);
+          
+          // Auto-suggest a new name
+          if (suggestions.length > 0) {
+            const newSuggestion = suggestions[0].replace(/^Try a different name like "/, '').replace(/"$/, '');
+            setWorkbookName(newSuggestion);
+          }
+          
+        } else {
+          // Other errors
+          throw new Error(result.message || 'Failed to create workbook');
+        }
       }
     } catch (error) {
-      console.error('Error creating workbook:', error);
+      console.error('❌ Error creating workbook:', error);
       
-      // For now, simulate success for demo purposes
-      console.log('Creating workbook locally:', {
-        name: workbookName,
-        template: selectedTemplate.name,
-        category: selectedTemplate.category
-      });
-      
-      setShowNameDialog(false);
-      setShowMainApp(true);
+      if (error.message.includes('Failed to fetch')) {
+        alert('❌ Cannot connect to Python backend!\n\nMake sure to:\n1. Install Flask: pip install flask flask-cors\n2. Run the Python backend: python app.py\n3. Backend should be running on http://localhost:5000');
+      } else {
+        alert(`❌ Failed to create workbook: ${error.message}`);
+      }
     }
   };
 
   // Python backend integration functions
   const handleOpenFile = async () => {
-    console.log('🗂️ Opening file browser...');
-    alert('Open File - Python integration ready!');
+    console.log('Opening file browser...');
+    // TODO: Implement file browser dialog
   };
 
   const handleSaveFile = async () => {
-    console.log('💾 Saving current file...');
-    alert('Save - Python integration ready!');
+    console.log('Saving current file...');
+    // TODO: Implement save functionality
   };
 
   const handleSaveAsFile = async () => {
-    console.log('📁 Save As dialog...');
-    alert('Save As - Python integration ready!');
+    console.log('Save As dialog...');
+    // TODO: Implement save as dialog
   };
 
   const handlePrintFile = async () => {
-    console.log('🖨️ Print dialog...');
-    alert('Print - Python integration ready!');
+    console.log('Print dialog...');
+    // TODO: Implement print functionality
   };
 
   const handleShareFile = async () => {
-    console.log('🔗 Share dialog...');
-    alert('Share - Python integration ready!');
+    console.log('Share dialog...');
+    // TODO: Implement share functionality
   };
 
   const handleExportFile = async () => {
-    console.log('📤 Export dialog...');
-    alert('Export - Python integration ready!');
+    console.log('Export dialog...');
+    // TODO: Implement export functionality
   };
 
   const handleCloseFile = async () => {
-    console.log('❌ Closing application...');
-    alert('Close - Python integration ready!');
+    console.log('Closing application...');
+    // TODO: Implement close functionality
   };
 
   const filteredTemplates = templates.filter(template =>
@@ -227,44 +321,17 @@ export default function LandingPage() {
   );
 
   // If main app should be shown, render it instead
-  if (showMainApp) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-8 text-center">
-          <h1 className="text-2xl font-bold mb-4">TrackSheets Main Application</h1>
-          <p className="text-gray-600 mb-4">
-            Workbook "{workbookName}" created successfully!
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            Template: {selectedTemplate?.name} | Category: {selectedTemplate?.category}
-          </p>
-          
-          {/* Placeholder for Main App */}
-          <div className="bg-white border border-gray-300 rounded-lg p-8 max-w-4xl mx-auto">
-            <p className="text-gray-600">
-              🚀 <strong>Integration Point:</strong> This is where the "TrackSheets Main Application" 
-              component from your Project Knowledge will be loaded.
-            </p>
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-800">
-                <strong>Next Steps:</strong><br/>
-                1. Import the TrackSheetsApp component from Project Knowledge<br/>
-                2. Pass workbook data as props<br/>
-                3. Connect to Python backend for data persistence
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowMainApp(false)}
-            className="mt-6 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-          >
-            ← Back to Landing Page
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // If main app should be shown, render the main TrackSheets application
+if (showMainApp) {
+  return (
+    <TrackSheetsApp 
+      workbookData={workbookData}
+      onClose={() => setShowMainApp(false)}
+      onSave={handleSaveFile}
+      onExport={handleExportFile}
+    />
+  );
+}
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -413,15 +480,62 @@ export default function LandingPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Workbook Name
               </label>
-              <input
-                type="text"
-                value={workbookName}
-                onChange={(e) => setWorkbookName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="Enter workbook name..."
-                autoFocus
-                onKeyPress={(e) => e.key === 'Enter' && handleCreateWorkbook()}
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={workbookName}
+                  onChange={(e) => handleWorkbookNameChange(e.target.value)}
+                  className={`w-full px-3 py-2 pr-10 border rounded-md focus:outline-none focus:ring-2 transition-colors ${
+                    nameCheckStatus === 'available' ? 'border-green-300 focus:ring-green-500 bg-green-50' :
+                    nameCheckStatus === 'exists' ? 'border-red-300 focus:ring-red-500 bg-red-50' :
+                    nameCheckStatus === 'checking' ? 'border-yellow-300 focus:ring-yellow-500 bg-yellow-50' :
+                    'border-gray-300 focus:ring-green-500'
+                  }`}
+                  placeholder="Enter workbook name..."
+                  autoFocus
+                  onKeyPress={(e) => e.key === 'Enter' && nameCheckStatus === 'available' && handleCreateWorkbook()}
+                />
+                
+                {/* Status indicator */}
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  {nameCheckStatus === 'checking' && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-500"></div>
+                  )}
+                  {nameCheckStatus === 'available' && (
+                    <span className="text-green-500 text-lg">✓</span>
+                  )}
+                  {nameCheckStatus === 'exists' && (
+                    <span className="text-red-500 text-lg">✗</span>
+                  )}
+                  {nameCheckStatus === 'error' && (
+                    <span className="text-orange-500 text-lg">⚠</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Status message */}
+              {nameCheckStatus && (
+                <div className={`mt-2 text-sm ${
+                  nameCheckStatus === 'available' ? 'text-green-600' :
+                  nameCheckStatus === 'exists' ? 'text-red-600' :
+                  nameCheckStatus === 'checking' ? 'text-yellow-600' :
+                  'text-orange-600'
+                }`}>
+                  {nameCheckStatus === 'checking' && '🔍 Checking availability...'}
+                  {nameCheckStatus === 'available' && '✅ Name is available!'}
+                  {nameCheckStatus === 'exists' && '❌ Name already exists - choose a different name'}
+                  {nameCheckStatus === 'error' && '⚠️ Error checking name - please try again'}
+                </div>
+              )}
+              
+              {/* Manual check button */}
+              <button
+                type="button"
+                onClick={() => checkNameAvailability(workbookName)}
+                className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Check name availability
+              </button>
             </div>
 
             <div className="flex justify-end space-x-3">
@@ -433,9 +547,16 @@ export default function LandingPage() {
               </button>
               <button
                 onClick={handleCreateWorkbook}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                disabled={!workbookName.trim() || nameCheckStatus === 'exists' || nameCheckStatus === 'checking'}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  !workbookName.trim() || nameCheckStatus === 'exists' || nameCheckStatus === 'checking'
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               >
-                Create Workbook
+                {nameCheckStatus === 'checking' ? 'Checking...' :
+                 nameCheckStatus === 'exists' ? 'Name Unavailable' :
+                 'Create Workbook'}
               </button>
             </div>
           </div>
