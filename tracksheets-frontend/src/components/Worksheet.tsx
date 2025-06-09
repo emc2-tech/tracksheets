@@ -6,14 +6,12 @@ import {
   GitBranch, 
   Users, 
   Download,
-  ChevronDown,
   Plus,
   Edit3,
   Type,
   Hash,
   Calendar,
   ToggleLeft,
-  Camera,
   Clock,
   User,
   Eye,
@@ -22,6 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport }) {
+  // Core UI State
   const [selectedCell, setSelectedCell] = useState(null);
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -29,24 +28,42 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
   const [activeColumn, setActiveColumn] = useState(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [selectedRowHistory, setSelectedRowHistory] = useState(null);
+  
+  // Notification State
   const [showUpdatePopup, setShowUpdatePopup] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
-  const [emailDetails, setEmailDetails] = useState({ customer: '', change: '' });
-  const [validationErrors, setValidationErrors] = useState({});
   const [showValidationPopup, setShowValidationPopup] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
+  const [emailDetails, setEmailDetails] = useState({ customer: '', email: '', change: '' });
+  const [validationErrors, setValidationErrors] = useState({});
 
-  // Initialize data based on workbook template
+  // Column Configuration State
+  const [columnConfigForm, setColumnConfigForm] = useState({
+    name: '',
+    type: 'text',
+    sensitivity: 'Standard'
+  });
+
+  // Python Backend Integration State
+  const [businessActions, setBusinessActions] = useState({});
+  const [gitHashes, setGitHashes] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // Data State
   const [data, setData] = useState([]);
   const [validationStatus, setValidationStatus] = useState([]);
   const [pendingChanges, setPendingChanges] = useState(new Set());
   const [activeRows, setActiveRows] = useState(new Set());
   const [columns, setColumns] = useState([]);
 
-  // Initialize columns and data based on template
+  // Debug workbook data
+  console.log('🔍 TrackSheetsApp received workbookData:', workbookData);
+
+  // Initialize columns and data based on workbook template
   useEffect(() => {
     if (workbookData && workbookData.initialData) {
       const templateData = workbookData.initialData;
+      console.log('📋 Initializing with template data:', templateData);
       
       if (templateData.columns && templateData.columns.length > 0) {
         // Create columns from template
@@ -60,7 +77,7 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
           validation: detectValidationType(colName)
         }));
 
-        // Add action columns for certain templates
+        // Add action columns for Customer Database template
         if (workbookData.template === 'Customer Database') {
           newColumns.push(
             { id: 'L', name: 'Send for Validation', type: 'action', width: 140, sensitivity: 'Standard' },
@@ -69,34 +86,34 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
         }
 
         setColumns(newColumns);
+        console.log('📊 Created columns:', newColumns.map(c => c.name));
         
         // Set initial data
         if (templateData.rows && templateData.rows.length > 0) {
           setData(templateData.rows);
-          // Initialize validation status for existing rows
           const statusArray = new Array(templateData.rows.length).fill(null);
           setValidationStatus(statusArray);
-          // Mark all rows as active
           const activeRowsSet = new Set();
           for (let i = 0; i < templateData.rows.length; i++) {
             activeRowsSet.add(i);
           }
           setActiveRows(activeRowsSet);
+          console.log('✅ Loaded initial data rows:', templateData.rows.length);
         } else {
           // Empty template
           setData([]);
           setValidationStatus([]);
           setActiveRows(new Set());
+          console.log('📋 Empty template - no initial data');
         }
       } else {
-        // Blank workbook - no predefined columns
-        setColumns([]);
-        setData([]);
-        setValidationStatus([]);
-        setActiveRows(new Set());
+        // Blank workbook - create default 10 columns × 100 rows
+        console.log('📄 Blank workbook - creating default grid');
+        initializeBlankSpreadsheet();
       }
     } else {
       // Fallback to default Customer Database if no workbook data
+      console.log('⚠️ No workbook data - using fallback');
       initializeDefaultCustomerDatabase();
     }
   }, [workbookData]);
@@ -141,6 +158,156 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     return 'text';
   };
 
+  // Initialize blank spreadsheet with 10 columns × 100 rows
+  const initializeBlankSpreadsheet = () => {
+    // Create 10 columns (A through J)
+    const blankColumns = [];
+    for (let i = 0; i < 10; i++) {
+      const columnId = String.fromCharCode(65 + i); // A, B, C, D, E, F, G, H, I, J
+      blankColumns.push({
+        id: columnId,
+        name: `Column ${columnId}`,
+        type: 'text',
+        width: 120,
+        sensitivity: 'Standard',
+        required: false,
+        validation: 'text'
+      });
+    }
+
+    // Create 100 empty rows
+    const emptyRows = [];
+    const activeRowsSet = new Set();
+    for (let i = 0; i < 100; i++) {
+      emptyRows.push(new Array(10).fill(''));
+      activeRowsSet.add(i);
+    }
+
+    setColumns(blankColumns);
+    setData(emptyRows);
+    setValidationStatus(new Array(100).fill(null));
+    setActiveRows(activeRowsSet);
+    
+    console.log('📊 Created blank spreadsheet: 10 columns × 100 rows');
+  };
+
+  // NEW: Enhanced Row History Viewer Component
+  const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      const loadHistory = async () => {
+        setLoading(true);
+        const historyData = await fetchHistory(rowIndex);
+        setHistory(historyData);
+        setLoading(false);
+      };
+      loadHistory();
+    }, [rowIndex]);
+
+    const getChangedFields = (current, previous) => {
+      if (!previous) return Object.keys(current || {});
+      
+      const changed = [];
+      Object.keys(current || {}).forEach(key => {
+        if (current[key] !== previous[key]) {
+          changed.push(key);
+        }
+      });
+      return changed;
+    };
+
+    const formatTimestamp = (timestamp) => {
+      return new Date(timestamp).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    if (loading) {
+      return <div className="text-center py-4">Loading history...</div>;
+    }
+
+    return (
+      <div className="space-y-4">
+        {history.map((version, versionIndex) => {
+          const previousVersion = history[versionIndex + 1];
+          const changedFields = getChangedFields(
+            version.full_row_data, 
+            previousVersion?.full_row_data
+          );
+
+          return (
+            <div key={version.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              {/* Version Header */}
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-3">
+                    <span className="font-medium text-sm text-blue-700">
+                      {versionIndex === 0 ? 'Current' : `Version ${versionIndex + 1}`}
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      by {version.user_display_name || version.user_email}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {formatTimestamp(version.timestamp)}
+                    </span>
+                  </div>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    {changedFields.length} changes
+                  </span>
+                </div>
+              </div>
+
+              {/* Full Row Display */}
+              <div className="p-4">
+                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns.length - 2}, 1fr)` }}>
+                  {columns.slice(0, -2).map((col, colIndex) => {
+                    const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
+                    const cellValue = version.full_row_data?.[fieldName] || '';
+                    const isChanged = changedFields.includes(fieldName);
+
+                    return (
+                      <div key={col.id} className="relative">
+                        {/* Column Header */}
+                        <div className="text-xs font-medium text-gray-500 mb-1 truncate">
+                          {col.name}
+                        </div>
+                        
+                        {/* Cell Value */}
+                        <div className={`p-2 border rounded text-sm min-h-8 ${
+                          isChanged 
+                            ? 'bg-red-50 border-red-200 text-red-900' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}>
+                          {cellValue || <span className="text-gray-400 italic">empty</span>}
+                        </div>
+                        
+                        {/* Change Indicator */}
+                        {isChanged && (
+                          <div className="absolute -top-1 -right-1">
+                            <span className="inline-block w-3 h-3 bg-red-500 rounded-full" 
+                                  title="This field was changed"></span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+
+  
   // Initialize default customer database if no template data
   const initializeDefaultCustomerDatabase = () => {
     const defaultColumns = [
@@ -163,16 +330,165 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     setData([]);
     setValidationStatus([]);
     setActiveRows(new Set());
+    console.log('🔧 Initialized default Customer Database');
   };
 
-  const versionHistory = [
-    { id: 'v1.1', author: 'System', timestamp: 'Just now', changes: `Created workbook: ${workbookData?.name || 'New Workbook'}`, type: 'create' }
-  ];
+  // 🎯 MAIN PYTHON BACKEND INTEGRATION FUNCTION
+  const triggerPythonFunction = async (rowIndex, rowData, action = 'update') => {
+    console.log(`🚀 Triggering Python function for row ${rowIndex}`);
+    
+    try {
+      setLoading(true);
+      
+      // Prepare data to send to Python backend
+      const dynamicRowData = {};
+      rowData.forEach((value, index) => {
+        if (index < columns.length - 2) { // Skip action columns
+          const column = columns[index];
+          const fieldName = column.name.toLowerCase().replace(/\s+/g, '_');
+          
+          // Handle different data types
+          if (column.type === 'number' && value) {
+            dynamicRowData[fieldName] = parseFloat(value) || 0;
+          } else {
+            dynamicRowData[fieldName] = value || '';
+          }
+        }
+      });
 
-  const collaborators = [
-    { name: 'Current User', status: 'editing', avatar: 'CU' }
-  ];
+      const requestData = {
+        spreadsheet_id: workbookData?.name || 'unknown-workbook',
+        row_index: rowIndex,
+        row_data: dynamicRowData,
+        column_info: columns.map(col => ({
+          id: col.id,
+          name: col.name,
+          type: col.type,
+          validation: col.validation
+        })),
+        user_id: 'current-user',
+        action_type: action,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('📤 Sending to Python backend:', requestData);
+      
+      // 🔥 Call self-contained workbook backend
+      const workbookName = encodeURIComponent(workbookData?.name || 'unknown');
+      const response = await fetch(`http://localhost:5000/api/workbook/${workbookName}/row-updated`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Get response from Python functions
+      const result = await response.json();
+      console.log('📥 Python response:', result);
+      
+      // Update UI with Python results
+      handlePythonResponse(rowIndex, result);
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Failed to trigger Python function:', error);
+      setValidationMessage(`❌ Backend error: ${error.message}`);
+      setShowValidationPopup(true);
+      setTimeout(() => setShowValidationPopup(false), 4000);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Handle response from Python backend
+  const handlePythonResponse = (rowIndex, pythonResult) => {
+    console.log(`🎯 Processing Python results for row ${rowIndex}:`, pythonResult);
+    
+    // Store Git hash
+    if (pythonResult.git_hash) {
+      setGitHashes(prev => ({
+        ...prev,
+        [rowIndex]: pythonResult.git_hash
+      }));
+      console.log(`🔐 Git hash for row ${rowIndex}: ${pythonResult.git_hash.substring(0, 12)}...`);
+    }
+    
+    // Store business actions
+    if (pythonResult.business_actions && pythonResult.business_actions.length > 0) {
+      setBusinessActions(prev => ({
+        ...prev,
+        [rowIndex]: pythonResult.business_actions
+      }));
+      
+      // Show business action notifications
+      pythonResult.business_actions.forEach(action => {
+        showBusinessActionNotification(action, rowIndex);
+      });
+    }
+    
+    // Show success message
+    const gitHashShort = pythonResult.git_hash?.substring(0, 8) || 'none';
+    setValidationMessage(`✅ ${pythonResult.message} (Git: ${gitHashShort})`);
+    setShowValidationPopup(true);
+    setTimeout(() => setShowValidationPopup(false), 3000);
+  };
+
+  // NEW: Fetch enhanced row history
+  const fetchRowHistory = async (rowIndex) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/workbook/${encodeURIComponent(workbookData?.name)}/row-history/${rowIndex}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        return result.history;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch row history:', error);
+      return [];
+    }
+  };
+
+  // Show notifications for business actions triggered by Python
+  const showBusinessActionNotification = (action, rowIndex) => {
+    let message = '';
+    
+    switch (action.type) {
+      case 'manager_approval':
+        message = `🏦 ${action.message}`;
+        break;
+      case 'credit_check':
+        message = `📊 Credit Score: ${action.credit_score} (${action.status})`;
+        break;
+      case 'duplicate_warning':
+        message = `⚠️ ${action.message}`;
+        break;
+      case 'document_generation':
+        message = `📄 Document generated: ${action.document_id}`;
+        break;
+      case 'crm_sync':
+        message = `🔗 Synced to CRM: ${action.crm_id}`;
+        break;
+      default:
+        message = `🔧 ${action.type}: ${action.status}`;
+    }
+    
+    console.log(`📢 Business Action Notification for row ${rowIndex}:`, message);
+    
+    // Show notification
+    setValidationMessage(message);
+    setShowValidationPopup(true);
+    setTimeout(() => setShowValidationPopup(false), 4000);
+  };
+
+  // Configuration data
   const dataTypes = [
     { value: 'text', label: 'Text', icon: Type },
     { value: 'number', label: 'Number', icon: Hash },
@@ -206,20 +522,7 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     return `**** **** **** ${cleaned.slice(-4)}`;
   };
 
-  const getRowHistory = (rowIndex) => {
-    return [
-      { version: 'v1.1', field: 'Row Created', oldValue: null, newValue: 'New row added from template', author: 'System', timestamp: 'Just now' }
-    ];
-  };
-
-  const getEmptyRowHistory = (rowIndex) => {
-    if (!activeRows.has(rowIndex)) return [];
-    return [
-      { version: 'v1.2', field: 'Row Created', oldValue: null, newValue: 'New row activated', author: 'Current User', timestamp: 'Just now' }
-    ];
-  };
-
-  // Validation functions (simplified for templates)
+  // Validation functions
   const validateField = (value, column, rowIndex) => {
     const errors = [];
     const warnings = [];
@@ -290,6 +593,35 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     }
   };
 
+  const getRowHistory = (rowIndex) => {
+    const history = [];
+    const businessActionsList = businessActions[rowIndex] || [];
+    
+    // Add current version first
+    history.push({
+      version: 'Current',
+      field: 'Row State',
+      oldValue: null,
+      newValue: 'Latest changes',
+      author: 'current-user',
+      timestamp: 'Just now'
+    });
+    
+    // Add previous versions with negative numbering
+    businessActionsList.forEach((action, index) => {
+      history.push({
+        version: `Version -${index + 1}`,
+        field: 'Business Action',
+        oldValue: null,
+        newValue: `${action.type}: ${action.message || action.status}`,
+        author: 'System',
+        timestamp: action.timestamp || 'just now'
+      });
+    });
+    
+    return history;
+  };
+
   // Event handlers
   const handleDoubleClick = (rowIndex, colIndex) => {
     if (colIndex >= columns.length - 2) return; // Skip action columns
@@ -297,64 +629,108 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     setEditValue(String(data[rowIndex]?.[colIndex] || ''));
   };
 
-  const handleKeyPress = (e, rowIndex, colIndex) => {
+// 🆕 ADD THIS NEW FUNCTION
+const saveCurrentCell = async (rowIndex, colIndex) => {
+  try {
+    // Validate field first (frontend validation)
+    const column = columns[colIndex];
+    const validation = validateField(editValue, column, rowIndex);
+    
+    if (validation.errors.length > 0) {
+      // Show validation errors
+      const errorMsg = validation.errors.join(', ');
+      const suggestionMsg = validation.suggestions.length > 0 ? 
+        ` | Correct format: ${validation.suggestions.join(', ')}` : '';
+      setValidationMessage(`❌ ${errorMsg}${suggestionMsg}`);
+      setShowValidationPopup(true);
+      setTimeout(() => setShowValidationPopup(false), 5000);
+      return false; // Validation failed
+    }
+    
+    // Update local state
+    const newData = [...data];
+    newData[rowIndex] = newData[rowIndex] || [];
+    newData[rowIndex][colIndex] = editValue;
+    setData(newData);
+    
+    // Mark row as having pending changes
+    const newPendingChanges = new Set(pendingChanges);
+    newPendingChanges.add(rowIndex);
+    setPendingChanges(newPendingChanges);
+    
+    // 🚀 TRIGGER PYTHON FUNCTION
+    await triggerPythonFunction(rowIndex, newData[rowIndex], 'cell_update');
+    
+    return true; // Save successful
+    
+  } catch (error) {
+    console.error('Error in cell update:', error);
+    return false;
+  }
+};
+
+
+  // 🎯 TRIGGER POINT 1: When user finishes editing a cell
+  const handleKeyPress = async (e, rowIndex, colIndex) => {
     if (e.key === 'Enter') {
-      const column = columns[colIndex];
-      const validation = validateField(editValue, column, rowIndex);
-      
-      const newValidationErrors = { ...validationErrors };
-      newValidationErrors[`${rowIndex}-${colIndex}`] = validation;
-      setValidationErrors(newValidationErrors);
-      
-      if (validation.errors.length > 0) {
-        const errorMsg = validation.errors.join(', ');
-        const suggestionMsg = validation.suggestions.length > 0 ? 
-          ` | Correct format: ${validation.suggestions.join(', ')}` : '';
-        setValidationMessage(`❌ ${errorMsg}${suggestionMsg}`);
-        setShowValidationPopup(true);
-        setTimeout(() => setShowValidationPopup(false), 5000);
-        return;
+      const saved = await saveCurrentCell(rowIndex, colIndex);
+      if (saved) {
+        setEditingCell(null);
+        setEditValue('');
       }
-      
-      // Update data
-      const newData = [...data];
-      while (newData.length <= rowIndex) {
-        newData.push(new Array(columns.length - 2).fill(''));
-      }
-      newData[rowIndex][colIndex] = editValue;
-      setData(newData);
-      
-      const newPendingChanges = new Set(pendingChanges);
-      newPendingChanges.add(rowIndex);
-      setPendingChanges(newPendingChanges);
-      
-      setEditingCell(null);
-      setEditValue('');
-      setShowUpdatePopup(true);
-      setTimeout(() => setShowUpdatePopup(false), 2000);
-      
     } else if (e.key === 'Escape') {
       setEditingCell(null);
       setEditValue('');
+    } else if (e.key === 'Tab') {
+      e.preventDefault(); // Prevent default tab behavior
+      const saved = await saveCurrentCell(rowIndex, colIndex);
+      if (saved) {
+        setEditingCell(null);
+        setEditValue('');
+        // Move to next cell
+        const nextColIndex = colIndex + 1;
+        if (nextColIndex < columns.length - 2) { // Don't go into action columns
+          setSelectedCell(`${rowIndex}-${nextColIndex}`);
+          setEditingCell(`${rowIndex}-${nextColIndex}`);
+          setEditValue(String(data[rowIndex]?.[nextColIndex] || ''));
+        }
+      }
     }
   };
 
-  const sendForValidation = (rowIndex) => {
-    const newPendingChanges = new Set(pendingChanges);
-    newPendingChanges.delete(rowIndex);
-    setPendingChanges(newPendingChanges);
-    
-    const newValidationStatus = [...validationStatus];
-    newValidationStatus[rowIndex] = false;
-    setValidationStatus(newValidationStatus);
-    
-    setEmailDetails({
-      customer: data[rowIndex]?.[0] || 'Unknown',
-      email: data[rowIndex]?.[1] || 'No email',
-      change: 'Changes sent for validation'
-    });
-    setShowEmailPopup(true);
-    setTimeout(() => setShowEmailPopup(false), 4000);
+  // 🎯 TRIGGER POINT 2: When user sends row for validation
+  const sendForValidation = async (rowIndex) => {
+    try {
+      console.log(`📧 Sending row ${rowIndex} for validation`);
+      
+      // 🚀 TRIGGER PYTHON FUNCTION with specific action
+      const result = await triggerPythonFunction(rowIndex, data[rowIndex], 'send_validation');
+      
+      // Update validation status
+      const newValidationStatus = [...validationStatus];
+      newValidationStatus[rowIndex] = false; // pending
+      setValidationStatus(newValidationStatus);
+      
+      // Remove from pending changes
+      const newPendingChanges = new Set(pendingChanges);
+      newPendingChanges.delete(rowIndex);
+      setPendingChanges(newPendingChanges);
+      
+      // Show email notification
+      const customerName = data[rowIndex][0];
+      const customerEmail = data[rowIndex][5];
+      
+      setEmailDetails({
+        customer: customerName,
+        email: customerEmail,
+        change: `Validation sent (Git: ${result.git_hash?.substring(0, 8)})`
+      });
+      setShowEmailPopup(true);
+      setTimeout(() => setShowEmailPopup(false), 4000);
+      
+    } catch (error) {
+      console.error('Failed to send validation:', error);
+    }
   };
 
   const simulateCustomerApproval = (rowIndex) => {
@@ -363,22 +739,36 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     setValidationStatus(newValidationStatus);
   };
 
-  const activateRow = (rowIndex) => {
+  // 🎯 TRIGGER POINT 3: When user activates a new row
+  const activateRow = async (rowIndex) => {
+    console.log(`➕ Activating new row ${rowIndex}`);
+    
     const newActiveRows = new Set(activeRows);
     newActiveRows.add(rowIndex);
     setActiveRows(newActiveRows);
     
+    // Create empty row data
+    const emptyRowData = new Array(Math.max(1, columns.length - 2)).fill('');
+    
     const newData = [...data];
     while (newData.length <= rowIndex) {
-      newData.push(new Array(Math.max(1, columns.length - 2)).fill(''));
+      newData.push(emptyRowData);
     }
     setData(newData);
     
+    // Initialize validation status
     const newValidationStatus = [...validationStatus];
     while (newValidationStatus.length <= rowIndex) {
       newValidationStatus.push(null);
     }
     setValidationStatus(newValidationStatus);
+    
+    // 🚀 TRIGGER PYTHON FUNCTION for row creation
+    try {
+      await triggerPythonFunction(rowIndex, emptyRowData, 'row_created');
+    } catch (error) {
+      console.error('Failed to register row creation:', error);
+    }
   };
 
   // Add new column function
@@ -395,12 +785,108 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     };
     
     setColumns([...columns, newColumn]);
-    setActiveColumn(newColumn);
+    openColumnConfig(newColumn);
+  };
+
+  // Open column configuration
+  const openColumnConfig = (column) => {
+    setActiveColumn(column);
+    setColumnConfigForm({
+      name: column.name,
+      type: column.type,
+      sensitivity: column.sensitivity
+    });
     setShowColumnConfig(true);
+  };
+
+  // Update column configuration
+  const updateColumnConfig = () => {
+    if (!activeColumn) return;
+
+    const updatedColumns = columns.map(col => {
+      if (col.id === activeColumn.id) {
+        return {
+          ...col,
+          name: columnConfigForm.name || col.name,
+          type: columnConfigForm.type,
+          sensitivity: columnConfigForm.sensitivity
+        };
+      }
+      return col;
+    });
+
+    setColumns(updatedColumns);
+    setShowColumnConfig(false);
+    setActiveColumn(null);
+    
+    // Show success message
+    setValidationMessage(`✅ Column "${columnConfigForm.name}" updated successfully`);
+    setShowValidationPopup(true);
+    setTimeout(() => setShowValidationPopup(false), 2000);
+  };
+
+  // Version history data
+  const versionHistory = [
+    { 
+      id: 'v1.1', 
+      author: 'System', 
+      timestamp: 'Just now', 
+      changes: `Created workbook: ${workbookData?.name || 'New Workbook'}`, 
+      type: 'create' 
+    }
+  ];
+
+  const collaborators = [
+    { name: 'Current User', status: 'editing', avatar: 'CU' }
+  ];
+
+  // Render cell with Git information
+  const renderCellWithGitInfo = (rowIndex, colIndex, cellContent) => {
+    const gitHash = gitHashes[rowIndex];
+    const actions = businessActions[rowIndex] || [];
+    
+    return (
+      <div className="relative">
+        {cellContent}
+        
+        {/* Git hash indicator */}
+        {gitHash && (
+          <div className="absolute -top-1 -right-1">
+            <span 
+              className="inline-block w-2 h-2 bg-green-400 rounded-full"
+              title={`Git: ${gitHash.substring(0, 12)}... (${actions.length} actions)`}
+            />
+          </div>
+        )}
+        
+        {/* Business action indicators */}
+        {actions.some(a => a.type === 'manager_approval') && (
+          <div className="absolute top-0 left-0">
+            <span className="text-orange-500 text-xs">🏦</span>
+          </div>
+        )}
+        
+        {actions.some(a => a.type === 'duplicate_warning') && (
+          <div className="absolute top-0 left-2">
+            <span className="text-red-500 text-xs">⚠️</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Loading indicator */}
+      {loading && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <span>Processing with Python backend...</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
@@ -426,6 +912,8 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
               <>
                 <span className="text-sm text-gray-400">•</span>
                 <span className="text-sm text-gray-500">{workbookData.template}</span>
+                <span className="text-sm text-gray-400">•</span>
+                <span className="text-sm text-gray-500">Self-Contained Backend ✅</span>
               </>
             )}
           </div>
@@ -447,6 +935,15 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                 </div>
               ))}
             </div>
+
+            <button 
+              onClick={() => console.log('Git hashes:', gitHashes, 'Business actions:', businessActions)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm bg-green-100 hover:bg-green-200 rounded-md"
+              title="View Git hashes and business actions"
+            >
+              <span>🔐</span>
+              <span>Git Info</span>
+            </button>
 
             <button 
               onClick={() => setShowVersionHistory(!showVersionHistory)}
@@ -516,7 +1013,10 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Configure Column: {activeColumn?.name || 'New Column'}</h3>
                 <button 
-                  onClick={() => setShowColumnConfig(false)}
+                  onClick={() => {
+                    setShowColumnConfig(false);
+                    setActiveColumn(null);
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   ×
@@ -527,15 +1027,21 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Column Name</label>
                   <input 
                     type="text" 
-                    defaultValue={activeColumn?.name}
+                    value={columnConfigForm.name}
+                    onChange={(e) => setColumnConfigForm(prev => ({...prev, name: e.target.value}))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter column name"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Data Type</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select 
+                    value={columnConfigForm.type}
+                    onChange={(e) => setColumnConfigForm(prev => ({...prev, type: e.target.value}))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     {dataTypes.map(type => (
-                      <option key={type.value} value={type.value} selected={activeColumn?.type === type.value}>
+                      <option key={type.value} value={type.value}>
                         {type.label}
                       </option>
                     ))}
@@ -543,9 +1049,13 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Sensitivity Level</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <select 
+                    value={columnConfigForm.sensitivity}
+                    onChange={(e) => setColumnConfigForm(prev => ({...prev, sensitivity: e.target.value}))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     {sensitivityLevels.map(level => (
-                      <option key={level.value} value={level.value} selected={activeColumn?.sensitivity === level.value}>
+                      <option key={level.value} value={level.value}>
                         {level.label}
                       </option>
                     ))}
@@ -553,14 +1063,17 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
-                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium">
+                <button 
+                  onClick={updateColumnConfig}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+                >
                   Update Column
                 </button>
               </div>
             </div>
           )}
 
-          {/* Empty State for Blank Workbooks */}
+          {/* Empty State for Truly Empty Workbooks (shouldn't happen now) */}
           {columns.length === 0 && (
             <div className="flex-1 flex items-center justify-center py-20">
               <div className="text-center">
@@ -598,8 +1111,7 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                         className="border border-gray-300 p-2 text-left text-sm font-medium text-gray-700 group hover:bg-gray-200 cursor-pointer"
                         style={{ width: col.width }}
                         onClick={() => {
-                          setActiveColumn(col);
-                          setShowColumnConfig(true);
+                          openColumnConfig(col);
                         }}
                       >
                         <div className="flex items-center justify-between">
@@ -672,7 +1184,12 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
                                 onKeyDown={(e) => handleKeyPress(e, rowIndex, colIndex)}
-                                onBlur={() => setEditingCell(null)}
+                                onBlur={async () => {
+                                  const [currentRowIndex, currentColIndex] = editingCell.split('-').map(Number);
+                                  await saveCurrentCell(currentRowIndex, currentColIndex);
+                                  setEditingCell(null);
+                                  setEditValue('');
+                                }}
                                 className="w-full bg-transparent border-0 outline-none p-0 text-sm"
                                 autoFocus
                               />
@@ -683,9 +1200,11 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                                 className="w-4 h-4"
                               />
                             ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
-                              <span className="font-mono text-sm">
-                                {maskCreditCard(row[colIndex])}
-                              </span>
+                              renderCellWithGitInfo(rowIndex, colIndex, 
+                                <span className="font-mono text-sm">
+                                  {maskCreditCard(row[colIndex])}
+                                </span>
+                              )
                             ) : col.type === 'action' ? (
                               <div className="flex items-center justify-center">
                                 {pendingChanges.has(rowIndex) ? (
@@ -716,12 +1235,14 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                                 )}
                               </div>
                             ) : col.type === 'number' && row[colIndex] ? (
-                              <span>
-                                {col.validation === 'currency' ? 
-                                  `€${Number(row[colIndex]).toLocaleString()}` : 
-                                  row[colIndex]
-                                }
-                              </span>
+                              renderCellWithGitInfo(rowIndex, colIndex,
+                                <span>
+                                  {col.validation === 'currency' ? 
+                                    `€${Number(row[colIndex]).toLocaleString()}` : 
+                                    row[colIndex]
+                                  }
+                                </span>
+                              )
                             ) : (
                               <span>{row[colIndex] || ''}</span>
                             )}
@@ -734,50 +1255,34 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
                       {selectedRowHistory === rowIndex && (
                         <tr>
                           <td colSpan={columns.length + 2} className="p-0 border-0">
-                            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mx-2 mb-2 rounded shadow-sm">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-900 flex items-center">
-                                  <History className="w-4 h-4 mr-2 text-blue-600" />
+                            <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mx-2 mb-2 rounded shadow-lg">
+                              <div className="flex items-center justify-between mb-4">
+                                <h4 className="font-semibold text-lg text-gray-900 flex items-center">
+                                  <History className="w-5 h-5 mr-2 text-blue-600" />
                                   Row History: {row[0] || `Row ${rowIndex + 1}`}
                                 </h4>
                                 <button 
                                   onClick={() => setSelectedRowHistory(null)}
-                                  className="text-gray-400 hover:text-gray-600 text-lg font-bold px-2 py-1 hover:bg-gray-200 rounded"
+                                  className="text-gray-400 hover:text-gray-600 text-xl font-bold px-3 py-1 hover:bg-gray-200 rounded"
                                 >
                                   ×
                                 </button>
                               </div>
-                              <div className="space-y-2">
-                                {getRowHistory(rowIndex).map((change, changeIndex) => (
-                                  <div key={changeIndex} className="bg-white p-3 rounded border border-gray-200">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="font-medium text-sm text-blue-700">{change.version}</span>
-                                      <span className="text-xs text-gray-500">{change.timestamp}</span>
-                                    </div>
-                                    <div className="text-sm text-gray-700 mb-1">
-                                      <strong>{change.field}:</strong> 
-                                      {change.oldValue && (
-                                        <span className="mx-2 text-red-600 line-through">{change.oldValue}</span>
-                                      )}
-                                      {change.oldValue && change.newValue && <span className="mx-1">→</span>}
-                                      <span className="text-green-600 font-medium">{change.newValue}</span>
-                                    </div>
-                                    <div className="flex items-center text-xs text-gray-500">
-                                      <User className="w-3 h-3 mr-1" />
-                                      <span>Changed by {change.author}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                              
+                              <RowHistoryViewer 
+                                rowIndex={rowIndex} 
+                                columns={columns}
+                                fetchHistory={fetchRowHistory}
+                              />
                             </div>
                           </td>
                         </tr>
-                      )}
+                      )}                                
                     </React.Fragment>
                   ))}
                   
                   {/* Empty rows for expansion */}
-                  {Array.from({ length: 100 }, (_, index) => {
+                  {Array.from({ length: 1 }, (_, index) => {
                     const rowIndex = data.length + index;
                     const isActive = activeRows.has(rowIndex);
                     
@@ -867,7 +1372,7 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
               <span className="text-lg">🔍</span>
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-sm mb-2 text-gray-900">Data Validation</h4>
+              <h4 className="font-medium text-sm mb-2 text-gray-900">Backend Response</h4>
               <div className="text-sm text-gray-700 leading-relaxed">
                 {validationMessage.includes('|') ? (
                   <div>
