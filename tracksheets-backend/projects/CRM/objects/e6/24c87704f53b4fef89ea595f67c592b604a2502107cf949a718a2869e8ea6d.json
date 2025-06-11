@@ -1,0 +1,16 @@
+{
+  "row_index": 0,
+  "data": {
+    "name_": "Eamon Mc",
+    "_address": "13 Ballinteer ",
+    "column_c": "",
+    "column_d": "",
+    "column_e": "",
+    "column_f": "",
+    "column_g": "",
+    "column_h": ""
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-11T20:50:36.756444",
+  "user_email": "current-user"
+}

@@ -191,120 +191,178 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
     console.log('📊 Created blank spreadsheet: 10 columns × 100 rows');
   };
 
-  // NEW: Enhanced Row History Viewer Component
-  const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
+// NEW: Enhanced Row History Viewer Component - Mirror Column Layout
+const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-      const loadHistory = async () => {
-        setLoading(true);
-        const historyData = await fetchHistory(rowIndex);
-        setHistory(historyData);
-        setLoading(false);
-      };
-      loadHistory();
-    }, [rowIndex]);
-
-    const getChangedFields = (current, previous) => {
-      if (!previous) return Object.keys(current || {});
-      
-      const changed = [];
-      Object.keys(current || {}).forEach(key => {
-        if (current[key] !== previous[key]) {
-          changed.push(key);
-        }
-      });
-      return changed;
+  useEffect(() => {
+    const loadHistory = async () => {
+      setLoading(true);
+      const historyData = await fetchHistory(rowIndex);
+      setHistory(historyData);
+      setLoading(false);
     };
+    loadHistory();
+  }, [rowIndex]);
 
-    const formatTimestamp = (timestamp) => {
-      return new Date(timestamp).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    };
-
-    if (loading) {
-      return <div className="text-center py-4">Loading history...</div>;
-    }
-
-    return (
-      <div className="space-y-4">
-        {history.map((version, versionIndex) => {
-          const previousVersion = history[versionIndex + 1];
-          const changedFields = getChangedFields(
-            version.full_row_data, 
-            previousVersion?.full_row_data
-          );
-
-          return (
-            <div key={version.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              {/* Version Header */}
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
-                    <span className="font-medium text-sm text-blue-700">
-                      {versionIndex === 0 ? 'Current' : `Version ${versionIndex + 1}`}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      by {version.user_display_name || version.user_email}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {formatTimestamp(version.timestamp)}
-                    </span>
-                  </div>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                    {changedFields.length} changes
-                  </span>
-                </div>
-              </div>
-
-              {/* Full Row Display */}
-              <div className="p-4">
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns.length - 2}, 1fr)` }}>
-                  {columns.slice(0, -2).map((col, colIndex) => {
-                    const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
-                    const cellValue = version.full_row_data?.[fieldName] || '';
-                    const isChanged = changedFields.includes(fieldName);
-
-                    return (
-                      <div key={col.id} className="relative">
-                        {/* Column Header */}
-                        <div className="text-xs font-medium text-gray-500 mb-1 truncate">
-                          {col.name}
-                        </div>
-                        
-                        {/* Cell Value */}
-                        <div className={`p-2 border rounded text-sm min-h-8 ${
-                          isChanged 
-                            ? 'bg-red-50 border-red-200 text-red-900' 
-                            : 'bg-gray-50 border-gray-200'
-                        }`}>
-                          {cellValue || <span className="text-gray-400 italic">empty</span>}
-                        </div>
-                        
-                        {/* Change Indicator */}
-                        {isChanged && (
-                          <div className="absolute -top-1 -right-1">
-                            <span className="inline-block w-3 h-3 bg-red-500 rounded-full" 
-                                  title="This field was changed"></span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
+  const getChangedFields = (current, previous) => {
+    if (!previous) return Object.keys(current || {});
+    
+    const changed = [];
+    Object.keys(current || {}).forEach(key => {
+      if (current[key] !== previous[key]) {
+        changed.push(key);
+      }
+    });
+    return changed;
   };
+
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return <div className="text-center py-4">Loading history...</div>;
+  }
+
+  // let content determine height with limits
+  const recordCount = history.length;
+  const needsScroll = recordCount > 5;
+  const maxHeight = needsScroll ? '600px' : 'none';
+  
+
+  // Get data columns (exclude action columns - last 2)
+  const dataColumns = columns.filter(col => col.type !== 'action' && col.type !== 'status');
+
+  return (
+    <div className="space-y-4">
+      {/* Dynamic Height Scrollable Container */}
+      <div 
+        className={`border border-gray-200 rounded-lg ${needsScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
+        style={{ 
+          maxHeight: maxHeight,
+          minHeight: needsScroll ? '400px' : 'auto' // ← Add minimum height for scroll
+        }}
+      >
+        <div className="space-y-3 p-4">
+          {history.map((version, versionIndex) => {
+            const previousVersion = history[versionIndex + 1];
+            const changedFields = getChangedFields(
+              version.full_row_data, 
+              previousVersion?.full_row_data
+            );
+
+            return (
+              <div key={version.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                {/* Version Header */}
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                      <span className="font-medium text-sm text-blue-700">
+                        {versionIndex === 0 ? 'Current' : `Version -${versionIndex}`}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        by {version.user_display_name || version.user_email}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {formatTimestamp(version.timestamp)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        {changedFields.length} changes
+                      </span>
+                      {version.git_hash && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-mono">
+                          {version.git_hash.substring(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Full Row Display - MIRRORS SPREADSHEET LAYOUT */}
+                <div className="p-4 overflow-x-auto">
+                  {/* Create a table structure that mirrors the main spreadsheet */}
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        {dataColumns.map((col) => (
+                          <th 
+                            key={col.id}
+                            className="text-left text-xs font-medium text-gray-500 pb-2 pr-2"
+                            style={{ width: col.width || 150 }}
+                          >
+                            {col.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        {dataColumns.map((col, colIndex) => {
+                          const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
+                          const cellValue = version.full_row_data?.[fieldName] || '';
+                          const isChanged = changedFields.includes(fieldName);
+
+                          return (
+                            <td 
+                              key={col.id} 
+                              className="relative pr-2"
+                              style={{ width: col.width || 150 }}
+                            >
+                              {/* Cell Value - PURPLE COLORS - MIRRORS MAIN SPREADSHEET */}
+                              <div className={`p-2 border rounded text-sm min-h-8 ${
+                                isChanged 
+                                  ? 'bg-purple-50 border-purple-200 text-purple-900' 
+                                  : 'bg-gray-50 border-gray-200'
+                              }`}>
+                                {/* Handle different column types like the main spreadsheet */}
+                                {col.type === 'number' && cellValue ? (
+                                  <span>
+                                    {col.validation === 'currency' ? 
+                                      `€${Number(cellValue).toLocaleString()}` : 
+                                      cellValue
+                                    }
+                                  </span>
+                                ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
+                                  <span className="font-mono text-sm">
+                                    {cellValue ? `**** **** **** ${cellValue.slice(-4)}` : ''}
+                                  </span>
+                                ) : (
+                                  cellValue || <span className="text-gray-400 italic">empty</span>
+                                )}
+                              </div>
+                              
+                              {/* Change Indicator - PURPLE */}
+                              {isChanged && (
+                                <div className="absolute -top-1 -right-1">
+                                  <span className="inline-block w-3 h-3 bg-purple-500 rounded-full" 
+                                        title="This field was changed"></span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
   
@@ -343,8 +401,9 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
       // Prepare data to send to Python backend
       const dynamicRowData = {};
       rowData.forEach((value, index) => {
-        if (index < columns.length - 2) { // Skip action columns
-          const column = columns[index];
+        const column = columns[index];
+        // Skip action and status columns by type, not position
+        if (column && column.type !== 'action' && column.type !== 'status') {
           const fieldName = column.name.toLowerCase().replace(/\s+/g, '_');
           
           // Handle different data types
@@ -624,7 +683,10 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
 
   // Event handlers
   const handleDoubleClick = (rowIndex, colIndex) => {
-    if (colIndex >= columns.length - 2) return; // Skip action columns
+    // Check if column is actually an action/status column, not by position
+    const column = columns[colIndex];
+    if (column && (column.type === 'action' || column.type === 'status')) return;
+    
     setEditingCell(`${rowIndex}-${colIndex}`);
     setEditValue(String(data[rowIndex]?.[colIndex] || ''));
   };
@@ -682,17 +744,22 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
       setEditingCell(null);
       setEditValue('');
     } else if (e.key === 'Tab') {
-      e.preventDefault(); // Prevent default tab behavior
+      e.preventDefault();
       const saved = await saveCurrentCell(rowIndex, colIndex);
       if (saved) {
         setEditingCell(null);
         setEditValue('');
-        // Move to next cell
-        const nextColIndex = colIndex + 1;
-        if (nextColIndex < columns.length - 2) { // Don't go into action columns
-          setSelectedCell(`${rowIndex}-${nextColIndex}`);
-          setEditingCell(`${rowIndex}-${nextColIndex}`);
-          setEditValue(String(data[rowIndex]?.[nextColIndex] || ''));
+        // Move to next cell - skip action/status columns
+        let nextColIndex = colIndex + 1;
+        while (nextColIndex < columns.length) {
+          const nextColumn = columns[nextColIndex];
+          if (nextColumn && nextColumn.type !== 'action' && nextColumn.type !== 'status') {
+            setSelectedCell(`${rowIndex}-${nextColIndex}`);
+            setEditingCell(`${rowIndex}-${nextColIndex}`);
+            setEditValue(String(data[rowIndex]?.[nextColIndex] || ''));
+            break;
+          }
+          nextColIndex++;
         }
       }
     }
@@ -1171,10 +1238,17 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
                             } ${
                               editingCell === `${rowIndex}-${colIndex}` ? 'bg-yellow-100 border-yellow-500' : ''
                             } ${
-                              getFieldValidationStatus(rowIndex, colIndex) === 'error' ? 'border-red-300 bg-red-50' :
+                              getFieldValidationStatus(rowIndex, colIndex) === 'error' ? 'border-purple-300 bg-purple-50' :
                               getFieldValidationStatus(rowIndex, colIndex) === 'warning' ? 'border-yellow-300 bg-yellow-50' :
                               getFieldValidationStatus(rowIndex, colIndex) === 'success' ? 'border-green-300 bg-green-50' : ''
                             }`}
+                            onClick={() => setSelectedCell(`${rowIndex}-${colIndex}`)}
+                            onDoubleClick={() => {
+                              const column = columns[colIndex];
+                              if (column && column.type !== 'action' && column.type !== 'status') {
+                                handleDoubleClick(rowIndex, colIndex);
+                              }
+                            }}
                             onClick={() => setSelectedCell(`${rowIndex}-${colIndex}`)}
                             onDoubleClick={() => handleDoubleClick(rowIndex, colIndex)}
                           >
@@ -1308,10 +1382,12 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
                           <td 
                             key={`empty-${index}-${colIndex}`}
                             className={`border border-gray-300 p-2 text-sm ${
-                              isActive ? 'cursor-cell' : 'cursor-not-allowed bg-gray-50'
+                              isActive && col.type !== 'action' && col.type !== 'status' 
+                                ? 'cursor-cell' 
+                                : 'cursor-not-allowed bg-gray-50'
                             }`}
                             onClick={() => {
-                              if (isActive) {
+                              if (isActive && col.type !== 'action' && col.type !== 'status') {
                                 setSelectedCell(`${rowIndex}-${colIndex}`);
                               }
                             }}
@@ -1319,10 +1395,10 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
                             {/* Empty cell content */}
                           </td>
                         ))}
-                        <td className="border border-gray-300 p-2"></td>
-                      </tr>
-                    );
-                  })}
+                      <td className="border border-gray-300 p-2"></td>
+                    </tr>
+                  );
+                })}
                 </tbody>
               </table>
             </div>

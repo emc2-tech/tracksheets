@@ -1,0 +1,16 @@
+{
+  "row_index": 0,
+  "data": {
+    "column_a": "Jow ",
+    "column_b": "Mc",
+    "column_c": "3232",
+    "column_d": "egegg",
+    "column_e": "",
+    "column_f": "",
+    "column_g": "",
+    "column_h": ""
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-11T21:33:14.859220",
+  "user_email": "current-user"
+}

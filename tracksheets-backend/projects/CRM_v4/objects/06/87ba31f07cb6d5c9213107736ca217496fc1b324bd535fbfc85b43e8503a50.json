@@ -1,0 +1,18 @@
+{
+  "row_index": 0,
+  "data": {
+    "column_a": "325243523",
+    "column_b": "5325435",
+    "column_c": "543354345",
+    "column_d": "43345",
+    "column_e": "55445",
+    "column_f": "54y457455",
+    "column_g": "435543354",
+    "column_h": "-090-909-",
+    "column_i": "09-90-",
+    "column_j": "9-009-"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-11T21:43:29.013480",
+  "user_email": "current-user"
+}
