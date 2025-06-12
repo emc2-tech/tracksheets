@@ -1,0 +1,18 @@
+{
+  "id": "d04ff12c0cab",
+  "name": "CRM_xxx",
+  "template": "Blank workbook",
+  "category": "General",
+  "version": "1.0",
+  "created_at": "2025-06-12T20:14:52.911379",
+  "updated_at": "2025-06-12T20:14:52.911383",
+  "created_by": "anonymous@user.com",
+  "settings": {
+    "auto_backup": true,
+    "validation_required": true,
+    "git_tracking": true,
+    "email_notifications": true
+  },
+  "schema_version": "1.0",
+  "database_version": "1.0"
+}

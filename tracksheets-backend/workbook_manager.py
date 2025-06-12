@@ -193,14 +193,34 @@ class WorkbookManager:
             conn.close()
         
         return object_hash
-    
+
     def get_object(self, workbook_name: str, object_hash: str) -> Optional[Dict]:
-        """Retrieve object by hash"""
+        """Retrieve object by hash - optimized with database lookup first"""
+        
+        # Method 1: Try database lookup first (FAST - O(1))
+        conn = self.get_workbook_database(workbook_name)
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT file_path FROM git_objects WHERE object_hash = ?", (object_hash,))
+                result = cursor.fetchone()
+                
+                if result and os.path.exists(result[0]):
+                    # Direct file access - no directory scan needed!
+                    with open(result[0], 'r') as f:
+                        return json.load(f)
+                        
+            except Exception as e:
+                print(f"Database lookup failed: {e}")
+            finally:
+                conn.close()
+        
+        # Method 2: Fallback to original directory scan
         workbook = self.get_workbook(workbook_name)
         if not workbook:
             return None
         
-        # Find object using Git-style path
+        # Original Git-style directory scan (unchanged)
         hash_prefix = object_hash[:2]
         hash_suffix = object_hash[2:]
         
@@ -210,7 +230,7 @@ class WorkbookManager:
         if not hash_dir.exists():
             return None
         
-        # Look for file starting with hash suffix
+        # Scan only the specific 2-char directory
         for file_path in hash_dir.iterdir():
             if file_path.name.startswith(hash_suffix):
                 try:

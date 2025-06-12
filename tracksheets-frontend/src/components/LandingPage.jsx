@@ -31,6 +31,10 @@ export default function ExcelLandingPage() {
   const [showMainApp, setShowMainApp] = useState(false);
   const [workbookData, setWorkbookData] = useState(null);
   const [nameCheckStatus, setNameCheckStatus] = useState(null); // 'available', 'exists', 'checking', 'error'
+  const [showOpenDialog, setShowOpenDialog] = useState(false);
+  const [existingWorkbooks, setExistingWorkbooks] = useState([]);
+  const [loadingWorkbooks, setLoadingWorkbooks] = useState(false);
+  const [selectedWorkbook, setSelectedWorkbook] = useState(null);
 
   const templates = [
     { 
@@ -281,8 +285,119 @@ export default function ExcelLandingPage() {
 
   // Python backend integration functions
   const handleOpenFile = async () => {
-    console.log('Opening file browser...');
-    // TODO: Implement file browser dialog
+    console.log('🔍 Opening workbook browser...');
+    
+    // Load existing workbooks and show selection dialog
+    const workbooks = await loadExistingWorkbooks();
+    
+    if (workbooks.length > 0) {
+      setShowOpenDialog(true);
+    } else {
+      alert('📋 No existing workbooks found!\n\nCreate your first workbook using the "New" templates above.');
+    }
+  };
+
+   // Load existing workbooks from backend
+  const loadExistingWorkbooks = async () => {
+    try {
+      setLoadingWorkbooks(true);
+      console.log('🔍 Loading existing workbooks...');
+      
+      const response = await fetch('http://localhost:5000/api/workbooks');
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('✅ Loaded workbooks:', result.workbooks);
+        setExistingWorkbooks(result.workbooks);
+        return result.workbooks;
+      } else {
+        throw new Error(result.message || 'Failed to load workbooks');
+      }
+    } catch (error) {
+      console.error('❌ Error loading workbooks:', error);
+      alert(`❌ Failed to load existing workbooks: ${error.message}`);
+      return [];
+    } finally {
+      setLoadingWorkbooks(false);
+    }
+  };
+
+  // Open existing workbook
+  const handleOpenWorkbook = async (workbook) => {
+    try {
+      console.log('📂 Opening workbook:', workbook.name);
+      
+      // Get detailed workbook data from backend
+      const response = await fetch(`http://localhost:5000/api/workbook/${encodeURIComponent(workbook.name)}`);
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        // Load template data for the workbook
+        const initialData = get_template_initial_data(workbook.template || 'Blank');
+        
+        const workbookData = {
+          ...result.workbook,
+          initialData: initialData
+        };
+        
+        console.log('✅ Loaded workbook data:', workbookData);
+        
+        // Set workbook data and open main app
+        setWorkbookData(workbookData);
+        setShowOpenDialog(false);
+        setShowMainApp(true);
+        
+      } else {
+        throw new Error(result.message || 'Failed to load workbook');
+      }
+    } catch (error) {
+      console.error('❌ Error opening workbook:', error);
+      alert(`❌ Failed to open workbook: ${error.message}`);
+    }
+  };
+
+  // Helper function to get template initial data (same as backend)
+  const get_template_initial_data = (template) => {
+    const templates = {
+      'Customer Database': {
+        'columns': [
+          'Name', 'Address', 'Postcode', 'Date of Birth', 'Telephone Number',
+          'Email', 'Original Loan Amount', 'Regular Payment Amount',
+          'Payment Frequency', 'Loan Amount Outstanding', 'Credit Card Number'
+        ],
+        'rows': []
+      },
+      'Personal Monthly Budget': {
+        'columns': ['Category', 'Budgeted Amount', 'Actual Amount', 'Difference', 'Notes'],
+        'rows': [
+          ['Housing', '1200', '1200', '0', 'Rent and utilities'],
+          ['Food', '400', '0', '400', 'Groceries and dining'],
+          ['Transportation', '300', '0', '300', 'Car payment and gas']
+        ]
+      },
+      'Project Timeline': {
+        'columns': ['Task', 'Start Date', 'End Date', 'Status', 'Assigned To', 'Priority'],
+        'rows': []
+      },
+      'Sales Report': {
+        'columns': ['Date', 'Product', 'Sales Amount', 'Units Sold', 'Region'],
+        'rows': []
+      },
+      'Expense Tracker': {
+        'columns': ['Date', 'Category', 'Description', 'Amount', 'Payment Method'],
+        'rows': []
+      },
+      'Inventory List': {
+        'columns': ['Item Name', 'Category', 'Quantity', 'Unit Price', 'Total Value', 'Supplier'],
+        'rows': []
+      },
+      'Task Planner': {
+        'columns': ['Task', 'Priority', 'Due Date', 'Status', 'Notes'],
+        'rows': []
+      }
+    };
+    
+    return templates[template] || {'columns': [], 'rows': []};
   };
 
   const handleSaveFile = async () => {
@@ -460,6 +575,155 @@ if (showMainApp) {
           )}
         </div>
       </main>
+
+       {/* Open Workbook Dialog */}
+      {showOpenDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-[600px] max-w-[90vw] max-h-[80vh] mx-4 flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Open Existing Workbook</h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={loadExistingWorkbooks}
+                  disabled={loadingWorkbooks}
+                  className="flex items-center space-x-1 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50"
+                  title="Refresh workbook list"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>Refresh</span>
+                </button>
+                <button 
+                  onClick={() => setShowOpenDialog(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold px-3 py-1 hover:bg-gray-100 rounded"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            {loadingWorkbooks ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+                <span className="ml-3 text-gray-600">Loading workbooks...</span>
+              </div>
+            ) : existingWorkbooks.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FolderOpen className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Workbooks Found</h3>
+                <p className="text-gray-500 mb-4">You haven't created any workbooks yet.</p>
+                <button 
+                  onClick={() => {
+                    setShowOpenDialog(false);
+                    setActiveCommand('New');
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Create Your First Workbook
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                <div className="grid gap-3 max-h-96">
+                  {existingWorkbooks.map((workbook, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedWorkbook(workbook)}
+                      className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
+                        selectedWorkbook?.id === workbook.id
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-200 bg-white hover:border-green-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate mb-1">
+                            {workbook.name}
+                          </h3>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500 mb-2">
+                            <span className="flex items-center">
+                              <Calendar className="w-4 h-4 mr-1" />
+                              {new Date(workbook.created_at).toLocaleDateString()}
+                            </span>
+                            <span className="flex items-center">
+                              <User className="w-4 h-4 mr-1" />
+                              {workbook.created_by || 'Unknown'}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                              workbook.template === 'Customer Database' ? 'bg-red-100 text-red-800' :
+                              workbook.template === 'Personal Monthly Budget' ? 'bg-green-100 text-green-800' :
+                              workbook.template === 'Project Timeline' ? 'bg-purple-100 text-purple-800' :
+                              workbook.template === 'Sales Report' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {workbook.template || 'Blank'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              v{workbook.version || '1.0'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-4">
+                          {selectedWorkbook?.id === workbook.id && (
+                            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-sm">✓</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Additional workbook info */}
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>ID: {workbook.id}</span>
+                          <span>Category: {workbook.category || 'General'}</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Dialog Footer */}
+            {existingWorkbooks.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  {existingWorkbooks.length} workbook{existingWorkbooks.length !== 1 ? 's' : ''} available
+                  {selectedWorkbook && (
+                    <span className="ml-2 font-medium text-gray-700">
+                      • Selected: {selectedWorkbook.name}
+                    </span>
+                  )}
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowOpenDialog(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => selectedWorkbook && handleOpenWorkbook(selectedWorkbook)}
+                    disabled={!selectedWorkbook}
+                    className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                      selectedWorkbook
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Open Workbook
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}    
+
 
       {/* Workbook Naming Dialog */}
       {showNameDialog && (
