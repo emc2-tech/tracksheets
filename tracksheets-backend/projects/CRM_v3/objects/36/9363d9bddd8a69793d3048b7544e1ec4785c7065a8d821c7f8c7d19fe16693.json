@@ -1,0 +1,11 @@
+{
+  "row_index": 2,
+  "data": {
+    "column_a": "",
+    "column_b": "",
+    "column_c": ""
+  },
+  "action_type": "row_created",
+  "timestamp": "2025-06-16T22:04:12.200446",
+  "user_email": "current-user"
+}

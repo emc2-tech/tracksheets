@@ -59,25 +59,53 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
   // Debug workbook data
   console.log('🔍 TrackSheetsApp received workbookData:', workbookData);
 
-  // Initialize columns and data based on workbook template
-  useEffect(() => {
-    if (workbookData && workbookData.initialData) {
-      const templateData = workbookData.initialData;
-      console.log('📋 Initializing with template data:', templateData);
+  // 🆕 NEW: Load current data for existing workbooks
+  const loadCurrentWorkbookData = async () => {
+    try {
+      console.log('🔄 Loading current data for existing workbook:', workbookData.name);
       
-      if (templateData.columns && templateData.columns.length > 0) {
-        // Create columns from template
-        const newColumns = templateData.columns.map((colName, index) => ({
-          id: String.fromCharCode(65 + index), // A, B, C, etc.
-          name: colName,
-          type: detectColumnType(colName),
-          width: calculateColumnWidth(colName),
-          sensitivity: detectSensitivity(colName),
-          required: index < 3, // First 3 columns required by default
-          validation: detectValidationType(colName)
-        }));
+      const response = await fetch(
+        `http://localhost:5000/api/workbook/${encodeURIComponent(workbookData.name)}/current-data`
+      );
+      const result = await response.json();
+      
+      if (result.success && result.current_data.has_data) {
+        console.log('✅ Loaded existing data:', result.current_data.rows.length, 'rows');
+        
+        // Create columns from template (we still need column structure)
+        // 🔧 FIX: Use columns from backend response, not template
+        let newColumns = [];
 
-        // Add action columns for Customer Database template
+        if (result.current_data.columns && result.current_data.columns.length > 0) {
+          // Use columns from backend
+          newColumns = result.current_data.columns.map((colName, index) => ({
+            id: String.fromCharCode(65 + index), // A, B, C, etc.
+            name: colName,
+            type: detectColumnType(colName),
+            width: calculateColumnWidth(colName),
+            sensitivity: detectSensitivity(colName),
+            required: index < 3,
+            validation: detectValidationType(colName)
+          }));
+          
+          console.log('📊 Using columns from backend:', result.current_data.columns);
+        } else {
+          // Fallback to template only if backend has no columns
+          const templateData = workbookData.initialData || get_template_initial_data(workbookData.template);
+          if (templateData && templateData.columns) {
+            newColumns = templateData.columns.map((colName, index) => ({
+              id: String.fromCharCode(65 + index),
+              name: colName,
+              type: detectColumnType(colName),
+              width: calculateColumnWidth(colName),
+              sensitivity: detectSensitivity(colName),
+              required: index < 3,
+              validation: detectValidationType(colName)
+            }));
+          }
+        }
+
+        // Add action columns if needed
         if (workbookData.template === 'Customer Database') {
           newColumns.push(
             { id: 'L', name: 'Send for Validation', type: 'action', width: 140, sensitivity: 'Standard' },
@@ -87,36 +115,143 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
 
         setColumns(newColumns);
         console.log('📊 Created columns:', newColumns.map(c => c.name));
-        
-        // Set initial data
-        if (templateData.rows && templateData.rows.length > 0) {
-          setData(templateData.rows);
-          const statusArray = new Array(templateData.rows.length).fill(null);
-          setValidationStatus(statusArray);
-          const activeRowsSet = new Set();
-          for (let i = 0; i < templateData.rows.length; i++) {
-            activeRowsSet.add(i);
-          }
-          setActiveRows(activeRowsSet);
-          console.log('✅ Loaded initial data rows:', templateData.rows.length);
-        } else {
-          // Empty template
-          setData([]);
-          setValidationStatus([]);
-          setActiveRows(new Set());
-          console.log('📋 Empty template - no initial data');
+      
+      // Use actual data from database
+      setData(result.current_data.rows);
+      setGitHashes(result.git_hashes || {});
+      
+      // Set active rows (rows that have data)
+      const activeRowsSet = new Set();
+      result.current_data.rows.forEach((row, index) => {
+        if (row.some(cell => cell !== '')) {
+          activeRowsSet.add(index);
         }
+      });
+      setActiveRows(activeRowsSet);
+      
+      // Initialize validation status
+      setValidationStatus(new Array(result.current_data.rows.length).fill(null));
+      
+      console.log('🎯 Loaded existing workbook with', activeRowsSet.size, 'active rows');
+      
+    } else {
+      console.log('📋 No existing data found, using template');
+      initializeFromTemplate();
+    }
+  } catch (error) {
+    console.error('❌ Failed to load current data:', error);
+    initializeFromTemplate(); // Fallback to template
+  }
+};
+
+// 🆕 NEW: Extract template initialization into separate function
+const initializeFromTemplate = () => {
+  console.log('📋 Initializing from template data');
+  
+  if (workbookData && workbookData.initialData) {
+    const templateData = workbookData.initialData;
+    console.log('📋 Using provided template data:', templateData);
+    
+    if (templateData.columns && templateData.columns.length > 0) {
+      // Create columns from template
+      const newColumns = templateData.columns.map((colName, index) => ({
+        id: String.fromCharCode(65 + index), // A, B, C, etc.
+        name: colName,
+        type: detectColumnType(colName),
+        width: calculateColumnWidth(colName),
+        sensitivity: detectSensitivity(colName),
+        required: index < 3, // First 3 columns required by default
+        validation: detectValidationType(colName)
+      }));
+
+      // Add action columns for Customer Database template
+      if (workbookData.template === 'Customer Database') {
+        newColumns.push(
+          { id: 'L', name: 'Send for Validation', type: 'action', width: 140, sensitivity: 'Standard' },
+          { id: 'M', name: 'Customer Validation', type: 'status', width: 140, sensitivity: 'Standard' }
+        );
+      }
+
+      setColumns(newColumns);
+      console.log('📊 Created columns:', newColumns.map(c => c.name));
+      
+      // Set initial data
+      if (templateData.rows && templateData.rows.length > 0) {
+        setData(templateData.rows);
+        const statusArray = new Array(templateData.rows.length).fill(null);
+        setValidationStatus(statusArray);
+        const activeRowsSet = new Set();
+        for (let i = 0; i < templateData.rows.length; i++) {
+          activeRowsSet.add(i);
+        }
+        setActiveRows(activeRowsSet);
+        console.log('✅ Loaded initial data rows:', templateData.rows.length);
       } else {
-        // Blank workbook - create default 10 columns × 100 rows
-        console.log('📄 Blank workbook - creating default grid');
-        initializeBlankSpreadsheet();
+        // Empty template
+        setData([]);
+        setValidationStatus([]);
+        setActiveRows(new Set());
+        console.log('📋 Empty template - no initial data');
       }
     } else {
-      // Fallback to default Customer Database if no workbook data
-      console.log('⚠️ No workbook data - using fallback');
-      initializeDefaultCustomerDatabase();
+      // Blank workbook - create default 10 columns × 100 rows
+      console.log('📄 Blank workbook - creating default grid');
+      initializeBlankSpreadsheet();
     }
-  }, [workbookData]);
+  } else {
+    // Fallback to default Customer Database if no workbook data
+    console.log('⚠️ No workbook data - using fallback');
+    initializeDefaultCustomerDatabase();
+  }
+};
+
+// 🆕 NEW: Helper function to get template data if not provided
+const get_template_initial_data = (template) => {
+  const templates = {
+    'Customer Database': {
+      'columns': [
+        'Name', 'Address', 'Postcode', 'Date of Birth', 'Telephone Number',
+        'Email', 'Original Loan Amount', 'Regular Payment Amount',
+        'Payment Frequency', 'Loan Amount Outstanding', 'Credit Card Number'
+      ],
+      'rows': []
+    },
+    'Personal Monthly Budget': {
+      'columns': ['Category', 'Budgeted Amount', 'Actual Amount', 'Difference', 'Notes'],
+      'rows': [
+        ['Housing', '1200', '1200', '0', 'Rent and utilities'],
+        ['Food', '400', '0', '400', 'Groceries and dining'],
+        ['Transportation', '300', '0', '300', 'Car payment and gas']
+      ]
+    }
+  };
+  
+  return templates[template] || {'columns': [], 'rows': []};
+};
+
+// 🔄 MODIFIED: useEffect to handle both new and existing workbooks
+useEffect(() => {
+  console.log('🐛 useEffect triggered with workbookData:', workbookData);
+  
+  if (workbookData) {
+    console.log('🔍 Workbook data received:', { 
+      name: workbookData.name, 
+      template: workbookData.template,
+      isNew: workbookData.isNew 
+    });
+
+    if (workbookData.isNew) {
+      console.log('🆕 New workbook - loading template');
+      initializeFromTemplate();
+    } else {
+      console.log('📂 Existing workbook - loading current data');
+      loadCurrentWorkbookData();
+    }
+  }
+}, [workbookData]);
+
+
+
 
   // Helper functions for column detection
   const detectColumnType = (colName) => {
@@ -1249,8 +1384,7 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
                                 handleDoubleClick(rowIndex, colIndex);
                               }
                             }}
-                            onClick={() => setSelectedCell(`${rowIndex}-${colIndex}`)}
-                            onDoubleClick={() => handleDoubleClick(rowIndex, colIndex)}
+                            
                           >
                             {editingCell === `${rowIndex}-${colIndex}` ? (
                               <input

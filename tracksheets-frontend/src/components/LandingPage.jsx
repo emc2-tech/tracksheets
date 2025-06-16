@@ -33,8 +33,8 @@ export default function ExcelLandingPage() {
   const [nameCheckStatus, setNameCheckStatus] = useState(null); // 'available', 'exists', 'checking', 'error'
   const [showOpenDialog, setShowOpenDialog] = useState(false);
   const [existingWorkbooks, setExistingWorkbooks] = useState([]);
-  const [loadingWorkbooks, setLoadingWorkbooks] = useState(false);
   const [selectedWorkbook, setSelectedWorkbook] = useState(null);
+  const [loadingWorkbooks, setLoadingWorkbooks] = useState(false);
 
   const templates = [
     { 
@@ -219,7 +219,10 @@ export default function ExcelLandingPage() {
         console.log('✅ Python backend response:', result);
         
         // Store workbook data in state for the main app
-        setWorkbookData(result);
+        setWorkbookData({
+          ...result,
+          isNew: true  // 🎯 KEY: Mark as new workbook
+        });
         
         // Close dialog and open main app
         setShowNameDialog(false);
@@ -283,18 +286,10 @@ export default function ExcelLandingPage() {
     }
   };
 
-  // Python backend integration functions
   const handleOpenFile = async () => {
-    console.log('🔍 Opening workbook browser...');
-    
-    // Load existing workbooks and show selection dialog
-    const workbooks = await loadExistingWorkbooks();
-    
-    if (workbooks.length > 0) {
-      setShowOpenDialog(true);
-    } else {
-      alert('📋 No existing workbooks found!\n\nCreate your first workbook using the "New" templates above.');
-    }
+    setShowOpenDialog(true);
+    setSelectedWorkbook(null);
+    await loadExistingWorkbooks();
   };
 
    // Load existing workbooks from backend

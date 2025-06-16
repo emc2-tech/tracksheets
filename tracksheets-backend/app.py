@@ -13,8 +13,16 @@ import hashlib
 import sqlite3
 from workbook_manager import WorkbookManager
 
+
+from flask_cors import CORS
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 # Initialize workbook manager
 wm = WorkbookManager(projects_base_dir="projects")
@@ -215,8 +223,286 @@ def get_row_history(workbook_name, row_index):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    
 
+@app.route('/api/workbook/<workbook_name>/columns', methods=['POST'])
+def save_column_configuration(workbook_name):
+    """Save column configuration as git object"""
+    try:
+        data = request.get_json()
+        
+        columns = data.get('columns', [])
+        user_email = data.get('user_id', 'anonymous@user.com')
+        action_type = data.get('action_type', 'column_config_update')
+        
+        # Verify workbook exists
+        workbook = wm.get_workbook(workbook_name)
+        if not workbook:
+            return jsonify({'success': False, 'error': 'workbook_not_found'}), 404
+        
+        # Save column config as git object
+        column_object_data = {
+            'type': 'column_configuration',
+            'columns': columns,
+            'action_type': action_type,
+            'timestamp': datetime.now().isoformat(),
+            'user_email': user_email
+        }
+        
+        git_hash = wm.save_object(workbook_name, column_object_data, 'columns')
+        
+        # Log the change in workbook database
+        conn = wm.get_workbook_database(workbook_name)
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO change_log (
+                    user_email, change_type, row_index, column_index,
+                    old_value, new_value, git_hash, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_email, 
+                action_type, 
+                None,  # No specific row for column config
+                None,  # No specific column
+                None,
+                f"{len(columns)} columns configured",
+                git_hash, 
+                datetime.now().isoformat()
+            ))
+            conn.commit()
+            conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Column configuration saved',
+            'git_hash': git_hash,
+            'columns_count': len(columns)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/workbook/<workbook_name>/current-data', methods=['GET'])
+def get_current_workbook_data(workbook_name):
+    """Get the current state of all rows and columns from git objects"""
+    print(f"🔍 DEBUG: current-data endpoint called for workbook: {workbook_name}")
+    
+    try:
+        # Verify workbook exists
+        workbook = wm.get_workbook(workbook_name)
+        if not workbook:
+            return jsonify({'success': False, 'error': 'workbook_not_found'}), 404
+
+        conn = wm.get_workbook_database(workbook_name)
+        if not conn:
+            return jsonify({'success': False, 'error': 'database_error'}), 500
+
+        cursor = conn.cursor()
+        column_names = []
+        column_load_error = None
+        
+        # 🆕 NEW: Try to get latest column configuration from git objects
+        try:
+            cursor.execute("""
+                SELECT git_hash, timestamp
+                FROM change_log 
+                WHERE git_hash IS NOT NULL 
+                  AND change_type = 'column_config_update'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            
+            latest_column_config = cursor.fetchone()
+            
+            if latest_column_config:
+                column_git_hash = latest_column_config[0]
+                print(f"🏗️ Loading column config from git hash: {column_git_hash}")
+                
+                try:
+                    column_object = wm.get_object(workbook_name, column_git_hash)
+                    if column_object and 'columns' in column_object:
+                        # Extract column names from git object
+                        columns_data = column_object['columns']
+                        column_names = [col.get('name', f'Column {i}') for i, col in enumerate(columns_data)]
+                        print(f"✅ Loaded {len(column_names)} columns from git: {column_names}")
+                    else:
+                        raise Exception(f"Invalid column object structure")
+                        
+                except Exception as git_error:
+                    column_load_error = f"Git object error: {git_error}"
+                    print(f"❌ Could not load column config from git: {git_error}")
+            else:
+                column_load_error = "No column configuration found in git"
+                print(f"⚠️ No column config found in git")
+                
+        except Exception as db_error:
+            column_load_error = f"Database query error: {db_error}"
+            print(f"❌ Database error loading column config: {db_error}")
+        
+        # 🔧 Fallback 1: Try template columns
+        if not column_names:
+            try:
+                print(f"🔄 Fallback: Trying template columns")
+                template_data = get_template_initial_data(workbook.get('template', 'Blank'))
+                if template_data and template_data.get('columns'):
+                    column_names = template_data['columns']
+                    print(f"✅ Using template columns: {column_names}")
+                else:
+                    raise Exception("No template columns available")
+            except Exception as template_error:
+                print(f"❌ Template fallback failed: {template_error}")
+        
+        # 🔧 Fallback 2: Always ensure we have SOME column structure
+        if not column_names:
+            print(f"🔄 Final fallback: Using generic column names")
+            column_names = ['Column A', 'Column B', 'Column C', 'Column D', 'Column E']
+        
+        print(f"📋 Final columns ({len(column_names)}): {column_names}")
+        
+        # 📊 ALWAYS try to load row data regardless of column issues
+        current_rows = []
+        git_hashes = {}
+        row_load_errors = []
+        
+        try:
+            # Get latest row data
+            cursor.execute("""
+                SELECT row_index, git_hash, timestamp
+                FROM change_log 
+                WHERE git_hash IS NOT NULL 
+                  AND row_index IS NOT NULL
+                  AND change_type != 'column_config_update'
+                ORDER BY row_index, timestamp DESC
+            """)
+            
+            all_changes = cursor.fetchall()
+            print(f"📊 Found {len(all_changes)} row change records")
+            
+            # Find latest per row
+            latest_per_row = {}
+            for change in all_changes:
+                row_index, git_hash, timestamp = change
+                if row_index not in latest_per_row:
+                    latest_per_row[row_index] = {'git_hash': git_hash}
+            
+            print(f"📈 Found latest hashes for {len(latest_per_row)} rows")
+            
+            # Build rows using git objects
+            if latest_per_row:
+                max_row = max(latest_per_row.keys())
+                
+                for row_index in range(max_row + 1):
+                    if row_index in latest_per_row:
+                        git_hash = latest_per_row[row_index]['git_hash']
+                        
+                        try:
+                            object_data = wm.get_object(workbook_name, git_hash)
+                            
+                            if object_data:
+                                git_hashes[str(row_index)] = git_hash
+                                
+                                # Extract data (handle different storage formats)
+                                row_array = []
+                                
+                                if 'data' in object_data and isinstance(object_data['data'], dict):
+                                    # Data stored as dictionary
+                                    for col_index, col_name in enumerate(column_names):
+                                        field_name = col_name.lower().replace(' ', '_').replace('-', '_')
+                                        value = object_data['data'].get(field_name, '')
+                                        row_array.append(value)
+                                    print(f"✅ Row {row_index} (dict): {len(row_array)} cells")
+                                    
+                                elif 'data' in object_data and isinstance(object_data['data'], list):
+                                    # Data stored as array
+                                    row_data = object_data['data']
+                                    row_array = row_data[:]  # Copy the array
+                                    print(f"✅ Row {row_index} (array): {len(row_array)} cells")
+                                    
+                                else:
+                                    # Try to extract from top-level object
+                                    for col_index, col_name in enumerate(column_names):
+                                        field_name = col_name.lower().replace(' ', '_').replace('-', '_')
+                                        value = object_data.get(field_name, '')
+                                        row_array.append(value)
+                                    print(f"✅ Row {row_index} (top-level): {len(row_array)} cells")
+                                
+                                # Ensure row has correct number of columns
+                                while len(row_array) < len(column_names):
+                                    row_array.append('')
+                                
+                                # Trim if too many columns
+                                row_array = row_array[:len(column_names)]
+                                
+                                current_rows.append(row_array)
+                                
+                            else:
+                                # Object not found - create empty row
+                                current_rows.append([''] * len(column_names))
+                                row_load_errors.append(f"Row {row_index}: Object not found for hash {git_hash}")
+                                
+                        except Exception as row_error:
+                            print(f"❌ Error loading row {row_index}: {row_error}")
+                            current_rows.append([''] * len(column_names))
+                            row_load_errors.append(f"Row {row_index}: {str(row_error)}")
+                    else:
+                        # Empty row
+                        current_rows.append([''] * len(column_names))
+            
+        except Exception as row_query_error:
+            print(f"❌ Error querying row data: {row_query_error}")
+            row_load_errors.append(f"Row query failed: {str(row_query_error)}")
+        
+        conn.close()
+        
+        # 🎯 ALWAYS return a response with whatever data we could load
+        result = {
+            'success': True,
+            'current_data': {
+                'columns': column_names,
+                'rows': current_rows,
+                'has_data': len(current_rows) > 0 and any(any(cell for cell in row) for row in current_rows)
+            },
+            'git_hashes': git_hashes,
+            'warnings': {
+                'column_load_error': column_load_error,
+                'row_load_errors': row_load_errors,
+                'columns_source': 'git' if not column_load_error else 'fallback'
+            }
+        }
+        
+        print(f"✅ Returning {len(current_rows)} rows, {len(column_names)} columns")
+        if column_load_error:
+            print(f"⚠️ Column load warning: {column_load_error}")
+        if row_load_errors:
+            print(f"⚠️ Row load warnings: {len(row_load_errors)}")
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Critical error in current-data endpoint: {e}")
+        
+        # 🚨 Even on critical error, try to return SOMETHING
+        try:
+            fallback_columns = ['Column A', 'Column B', 'Column C', 'Column D', 'Column E']
+            return jsonify({
+                'success': True,
+                'current_data': {
+                    'columns': fallback_columns,
+                    'rows': [],
+                    'has_data': False
+                },
+                'git_hashes': {},
+                'critical_error': str(e),
+                'warnings': {
+                    'column_load_error': f"Critical failure: {str(e)}",
+                    'row_load_errors': [f"Critical failure prevented data loading"],
+                    'columns_source': 'emergency_fallback'
+                }
+            })
+        except Exception as fallback_error:
+            # Absolute last resort
+            return jsonify({'success': False, 'error': str(e)}), 500
 # ===============================
 # DATA MANIPULATION ENDPOINTS
 # ===============================
@@ -625,4 +911,4 @@ if __name__ == '__main__':
     
     print("=" * 60)
     
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

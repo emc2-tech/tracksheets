@@ -1,0 +1,19 @@
+{
+  "row_index": 1,
+  "data": {
+    "name": "",
+    "address": "",
+    "postcode": "",
+    "date_of_birth": "",
+    "telephone_number": "",
+    "email": "",
+    "original_loan_amount": "",
+    "regular_payment_amount": "",
+    "payment_frequency": "",
+    "loan_amount_outstanding": "",
+    "credit_card_number": ""
+  },
+  "action_type": "row_created",
+  "timestamp": "2025-06-16T20:42:09.589772",
+  "user_email": "current-user"
+}
