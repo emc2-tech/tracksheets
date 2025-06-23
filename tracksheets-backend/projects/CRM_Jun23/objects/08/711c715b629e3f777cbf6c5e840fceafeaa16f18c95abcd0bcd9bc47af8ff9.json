@@ -1,0 +1,18 @@
+{
+  "row_index": 0,
+  "data": {
+    "name": "Eamon",
+    "address": "",
+    "column_c": "",
+    "column_d": "",
+    "column_e": "",
+    "column_f": "",
+    "column_g": "",
+    "column_h": "",
+    "column_i": "",
+    "column_j": ""
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-23T19:18:17.560804",
+  "user_email": "current-user"
+}

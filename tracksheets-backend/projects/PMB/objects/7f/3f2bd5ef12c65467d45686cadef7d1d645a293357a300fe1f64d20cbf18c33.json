@@ -1,0 +1,54 @@
+{
+  "type": "column_configuration",
+  "columns": [
+    {
+      "id": "A",
+      "name": "Category",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "text"
+    },
+    {
+      "id": "B",
+      "name": "Budgeted Amount",
+      "type": "number",
+      "width": 160,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "currency"
+    },
+    {
+      "id": "C",
+      "name": "Actual Amount",
+      "type": "number",
+      "width": 160,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "currency"
+    },
+    {
+      "id": "D",
+      "name": "Difference",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "E",
+      "name": "Notes",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    }
+  ],
+  "action_type": "column_update",
+  "timestamp": "2025-06-17T21:58:04.356070",
+  "user_email": "system@personal monthly budget",
+  "workbook_name": "PMB"
+}

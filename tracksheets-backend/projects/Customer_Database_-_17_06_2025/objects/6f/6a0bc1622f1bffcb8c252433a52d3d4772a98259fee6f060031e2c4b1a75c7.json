@@ -1,0 +1,19 @@
+{
+  "type": "template_initialization",
+  "template": "Customer Database",
+  "columns": [
+    "Name",
+    "Address",
+    "Postcode",
+    "Date of Birth",
+    "Telephone Number",
+    "Email",
+    "Original Loan Amount",
+    "Regular Payment Amount",
+    "Payment Frequency",
+    "Loan Amount Outstanding",
+    "Credit Card Number"
+  ],
+  "rows": [],
+  "created_at": "2025-06-17T21:51:17.913137"
+}

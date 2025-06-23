@@ -1,0 +1,16 @@
+{
+  "row_index": 1,
+  "data": {
+    "name": "Joe ",
+    "address": "",
+    "credit_card": "",
+    "column_d": "",
+    "column_e": "",
+    "column_f": "",
+    "column_g": "",
+    "column_h": ""
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-23T19:32:12.903752",
+  "user_email": "current-user"
+}

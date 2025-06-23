@@ -19,6 +19,8 @@ import {
   ArrowLeft
 } from 'lucide-react';
 
+import backendService from '../services/backendService';
+
 export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport }) {
   // Core UI State
   const [selectedCell, setSelectedCell] = useState(null);
@@ -59,90 +61,109 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
   // Debug workbook data
   console.log('🔍 TrackSheetsApp received workbookData:', workbookData);
 
-  // 🆕 NEW: Load current data for existing workbooks
+  // 🔧 FIXED: Load current data for existing workbooks
   const loadCurrentWorkbookData = async () => {
     try {
       console.log('🔄 Loading current data for existing workbook:', workbookData.name);
       
-      const response = await fetch(
-        `http://localhost:5000/api/workbook/${encodeURIComponent(workbookData.name)}/current-data`
-      );
-      const result = await response.json();
+      // 🔧 FIX: Use backendService instead of hardcoded URL
+      const result = await backendService.get(`/api/workbook/${encodeURIComponent(workbookData.name)}/current-data`);
       
-      if (result.success && result.current_data.has_data) {
-        console.log('✅ Loaded existing data:', result.current_data.rows.length, 'rows');
+      console.log('📥 Backend response:', result);
+
+      // 🔧 FIX: Check correct response structure  
+      if (result.success) {
+        console.log('✅ Loaded existing data from backend:', {
+          columns: result.columns?.length || 0,
+          rows: result.rows?.length || 0,
+          gitHashes: Object.keys(result.git_hashes || {}).length
+        });
         
-        // Create columns from template (we still need column structure)
-        // 🔧 FIX: Use columns from backend response, not template
-        let newColumns = [];
-
-        if (result.current_data.columns && result.current_data.columns.length > 0) {
-          // Use columns from backend
-          newColumns = result.current_data.columns.map((colName, index) => ({
-            id: String.fromCharCode(65 + index), // A, B, C, etc.
-            name: colName,
-            type: detectColumnType(colName),
-            width: calculateColumnWidth(colName),
-            sensitivity: detectSensitivity(colName),
-            required: index < 3,
-            validation: detectValidationType(colName)
-          }));
-          
-          console.log('📊 Using columns from backend:', result.current_data.columns);
+        // 🔧 FIX: Use columns directly from backend response
+        if (result.columns && result.columns.length > 0) {
+          console.log('📊 Using columns from backend:', result.columns.map(c => c.name));
+          setColumns(result.columns);
         } else {
-          // Fallback to template only if backend has no columns
+          console.log('⚠️ No columns in backend response, using template fallback');
           const templateData = workbookData.initialData || get_template_initial_data(workbookData.template);
-          if (templateData && templateData.columns) {
-            newColumns = templateData.columns.map((colName, index) => ({
-              id: String.fromCharCode(65 + index),
-              name: colName,
-              type: detectColumnType(colName),
-              width: calculateColumnWidth(colName),
-              sensitivity: detectSensitivity(colName),
-              required: index < 3,
-              validation: detectValidationType(colName)
-            }));
-          }
+          const templateColumns = createColumnsFromTemplate(templateData);
+          setColumns(templateColumns);
         }
 
-        // Add action columns if needed
-        if (workbookData.template === 'Customer Database') {
-          newColumns.push(
-            { id: 'L', name: 'Send for Validation', type: 'action', width: 140, sensitivity: 'Standard' },
-            { id: 'M', name: 'Customer Validation', type: 'status', width: 140, sensitivity: 'Standard' }
-          );
+        // 🔧 FIX: Use rows directly from backend response
+        if (result.rows && result.rows.length > 0) {
+          console.log('📊 Setting data rows:', result.rows.length);
+          setData(result.rows);
+          
+          // Set active rows (rows that have data)
+          const activeRowsSet = new Set();
+          result.rows.forEach((row, index) => {
+            if (row.some(cell => cell !== '' && cell !== null && cell !== undefined)) {
+              activeRowsSet.add(index);
+            }
+          });
+          setActiveRows(activeRowsSet);
+          console.log('✅ Active rows:', activeRowsSet.size);
+          
+          // Initialize validation status
+          setValidationStatus(new Array(result.rows.length).fill(null));
+        } else {
+          console.log('📋 No rows in backend response, starting with empty data');
+          setData([]);
+          setValidationStatus([]);
+          setActiveRows(new Set());
         }
 
-        setColumns(newColumns);
-        console.log('📊 Created columns:', newColumns.map(c => c.name));
-      
-      // Use actual data from database
-      setData(result.current_data.rows);
-      setGitHashes(result.git_hashes || {});
-      
-      // Set active rows (rows that have data)
-      const activeRowsSet = new Set();
-      result.current_data.rows.forEach((row, index) => {
-        if (row.some(cell => cell !== '')) {
-          activeRowsSet.add(index);
+        // Set git hashes
+        if (result.git_hashes) {
+          setGitHashes(result.git_hashes);
+          console.log('🔐 Set git hashes for rows:', Object.keys(result.git_hashes));
         }
-      });
-      setActiveRows(activeRowsSet);
+        
+        console.log('🎯 Successfully loaded existing workbook data');
+        
+      } else {
+        console.error('❌ Backend reported failure:', result);
+        throw new Error(result.error || 'Backend failed to load data');
+      }
       
-      // Initialize validation status
-      setValidationStatus(new Array(result.current_data.rows.length).fill(null));
-      
-      console.log('🎯 Loaded existing workbook with', activeRowsSet.size, 'active rows');
-      
-    } else {
-      console.log('📋 No existing data found, using template');
-      initializeFromTemplate();
+    } catch (error) {
+      console.error('❌ Failed to load current data:', error);
+      console.log('🔄 Falling back to template initialization');
+      initializeFromTemplate(); // Fallback to template
     }
-  } catch (error) {
-    console.error('❌ Failed to load current data:', error);
-    initializeFromTemplate(); // Fallback to template
-  }
-};
+  };
+
+  // 🆕 Helper function to create columns from template data
+  const createColumnsFromTemplate = (templateData) => {
+    if (!templateData || !templateData.columns) {
+      return [
+        {'id': 'A', 'name': 'Column A', 'type': 'text', 'width': 150, 'sensitivity': 'Standard'},
+        {'id': 'B', 'name': 'Column B', 'type': 'text', 'width': 150, 'sensitivity': 'Standard'},
+        {'id': 'C', 'name': 'Column C', 'type': 'text', 'width': 150, 'sensitivity': 'Standard'}
+      ];
+    }
+
+    const columns = templateData.columns.map((colName, index) => ({
+      id: String.fromCharCode(65 + index), // A, B, C, etc.
+      name: colName,
+      type: detectColumnType(colName),
+      width: calculateColumnWidth(colName),
+      sensitivity: detectSensitivity(colName),
+      required: index < 3,
+      validation: detectValidationType(colName)
+    }));
+
+    // Add action columns for Customer Database template
+    if (workbookData.template === 'Customer Database') {
+      columns.push(
+        { id: 'L', name: 'Send for Validation', type: 'action', width: 140, sensitivity: 'Standard' },
+        { id: 'M', name: 'Customer Validation', type: 'status', width: 140, sensitivity: 'Standard' }
+      );
+    }
+
+    return columns;
+  };
 
 // 🆕 NEW: Extract template initialization into separate function
 const initializeFromTemplate = () => {
@@ -533,15 +554,12 @@ const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
     try {
       setLoading(true);
       
-      // Prepare data to send to Python backend
+      // Prepare data
       const dynamicRowData = {};
       rowData.forEach((value, index) => {
         const column = columns[index];
-        // Skip action and status columns by type, not position
         if (column && column.type !== 'action' && column.type !== 'status') {
           const fieldName = column.name.toLowerCase().replace(/\s+/g, '_');
-          
-          // Handle different data types
           if (column.type === 'number' && value) {
             dynamicRowData[fieldName] = parseFloat(value) || 0;
           } else {
@@ -549,43 +567,24 @@ const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
           }
         }
       });
-
+  
       const requestData = {
         spreadsheet_id: workbookData?.name || 'unknown-workbook',
         row_index: rowIndex,
         row_data: dynamicRowData,
-        column_info: columns.map(col => ({
-          id: col.id,
-          name: col.name,
-          type: col.type,
-          validation: col.validation
-        })),
         user_id: 'current-user',
         action_type: action,
         timestamp: new Date().toISOString()
       };
       
-      console.log('📤 Sending to Python backend:', requestData);
+      console.log('📤 Sending to backend:', requestData);
       
-      // 🔥 Call self-contained workbook backend
-      const workbookName = encodeURIComponent(workbookData?.name || 'unknown');
-      const response = await fetch(`http://localhost:5000/api/workbook/${workbookName}/row-updated`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
+      const workbookName = workbookData?.name || 'unknown';
+      const result = await backendService.post(`/api/workbook/${encodeURIComponent(workbookName)}/row-updated`, requestData);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      console.log('📥 Backend response:', result);
       
-      // Get response from Python functions
-      const result = await response.json();
-      console.log('📥 Python response:', result);
-      
-      // Update UI with Python results
+      // Update UI with results
       handlePythonResponse(rowIndex, result);
       
       return result;
@@ -637,18 +636,20 @@ const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
   // NEW: Fetch enhanced row history
   const fetchRowHistory = async (rowIndex) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/workbook/${encodeURIComponent(workbookData?.name)}/row-history/${rowIndex}`);
-      const result = await response.json();
+      const workbookName = workbookData?.name || 'unknown';
+      const result = await backendService.get(`/api/workbook/${encodeURIComponent(workbookName)}/row-history/${rowIndex}`);
       
       if (result.success) {
         return result.history;
       }
+      console.error('❌ Row history fetch failed:', result);
       return [];
     } catch (error) {
-      console.error('Failed to fetch row history:', error);
+      console.error('❌ Failed to fetch row history:', error);
       return [];
     }
   };
+  
 
   // Show notifications for business actions triggered by Python
   const showBusinessActionNotification = (action, rowIndex) => {
@@ -974,20 +975,54 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
   };
 
   // Add new column function
-  const addNewColumn = () => {
-    const newColumnId = String.fromCharCode(65 + columns.length);
-    const newColumn = {
-      id: newColumnId,
-      name: `Column ${newColumnId}`,
-      type: 'text',
-      width: 150,
-      sensitivity: 'Standard',
-      required: false,
-      validation: 'text'
-    };
-    
-    setColumns([...columns, newColumn]);
-    openColumnConfig(newColumn);
+  const addNewColumn = async () => {
+    try {
+      // 1. Create new column
+      const newColumnId = String.fromCharCode(65 + columns.length);
+      const newColumn = {
+        id: newColumnId,
+        name: `Column ${newColumnId}`,
+        type: 'text',
+        width: 150,
+        sensitivity: 'Standard',
+        required: false,
+        validation: 'text'
+      };
+      
+      // 2. Update local state
+      const updatedColumns = [...columns, newColumn];
+      setColumns(updatedColumns);
+      console.log('➕ Added new column locally:', newColumn.name);
+
+      // 3. 🆕 SAVE TO BACKEND - This was missing!
+      const workbookName = workbookData?.name || 'unknown';
+      const saveResult = await backendService.post(`/api/workbook/${encodeURIComponent(workbookName)}/save-columns`, {
+        columns: updatedColumns,  // Save ALL columns including the new one
+        user_email: 'frontend@user.com'
+      });
+
+      if (saveResult.success) {
+        console.log('✅ New column saved to backend:', saveResult.git_hash?.substring(0, 8));
+        
+        // 4. Show success message
+        setValidationMessage(`✅ Added column "${newColumn.name}" (Git: ${saveResult.git_hash?.substring(0, 8) || 'none'})`);
+        setShowValidationPopup(true);
+        setTimeout(() => setShowValidationPopup(false), 3000);
+      } else {
+        // If backend save fails, revert local state
+        setColumns(columns);
+        throw new Error(saveResult.message || 'Failed to save new column');
+      }
+
+      // 5. Open configuration dialog for the new column
+      openColumnConfig(newColumn);
+      
+    } catch (error) {
+      console.error('❌ Failed to add new column:', error);
+      setValidationMessage(`❌ Failed to add column: ${error.message}`);
+      setShowValidationPopup(true);
+      setTimeout(() => setShowValidationPopup(false), 5000);
+    }
   };
 
   // Open column configuration
@@ -1001,30 +1036,55 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
     setShowColumnConfig(true);
   };
 
-  // Update column configuration
-  const updateColumnConfig = () => {
+  // 🔧 FIXED: Update column configuration with backend save
+  const updateColumnConfig = async () => {
     if (!activeColumn) return;
 
-    const updatedColumns = columns.map(col => {
-      if (col.id === activeColumn.id) {
-        return {
-          ...col,
-          name: columnConfigForm.name || col.name,
-          type: columnConfigForm.type,
-          sensitivity: columnConfigForm.sensitivity
-        };
-      }
-      return col;
-    });
+    try {
+      // 1. Update local state
+      const updatedColumns = columns.map(col => {
+        if (col.id === activeColumn.id) {
+          return {
+            ...col,
+            name: columnConfigForm.name || col.name,
+            type: columnConfigForm.type,
+            sensitivity: columnConfigForm.sensitivity
+          };
+        }
+        return col;
+      });
 
-    setColumns(updatedColumns);
-    setShowColumnConfig(false);
-    setActiveColumn(null);
-    
-    // Show success message
-    setValidationMessage(`✅ Column "${columnConfigForm.name}" updated successfully`);
-    setShowValidationPopup(true);
-    setTimeout(() => setShowValidationPopup(false), 2000);
+      setColumns(updatedColumns);
+      console.log('📊 Updated columns locally:', updatedColumns.map(c => c.name));
+
+      // 2. 🆕 SAVE TO BACKEND - This was missing!
+      const workbookName = workbookData?.name || 'unknown';
+      const saveResult = await backendService.post(`/api/workbook/${encodeURIComponent(workbookName)}/save-columns`, {
+        columns: updatedColumns,  // Save ALL columns, not just the changed one
+        user_email: 'frontend@user.com'
+      });
+
+      if (saveResult.success) {
+        console.log('✅ Column config saved to backend:', saveResult.git_hash?.substring(0, 8));
+        
+        // 3. Show success message with Git hash
+        setValidationMessage(`✅ Column "${columnConfigForm.name}" updated successfully (Git: ${saveResult.git_hash?.substring(0, 8) || 'none'})`);
+        setShowValidationPopup(true);
+        setTimeout(() => setShowValidationPopup(false), 3000);
+      } else {
+        throw new Error(saveResult.message || 'Failed to save column config');
+      }
+
+      // 4. Close dialog
+      setShowColumnConfig(false);
+      setActiveColumn(null);
+      
+    } catch (error) {
+      console.error('❌ Failed to update column config:', error);
+      setValidationMessage(`❌ Failed to save column config: ${error.message}`);
+      setShowValidationPopup(true);
+      setTimeout(() => setShowValidationPopup(false), 5000);
+    }
   };
 
   // Version history data

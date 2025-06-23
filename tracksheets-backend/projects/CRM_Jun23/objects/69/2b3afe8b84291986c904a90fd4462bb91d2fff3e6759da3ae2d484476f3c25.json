@@ -1,0 +1,16 @@
+{
+  "row_index": 1,
+  "data": {
+    "name": "",
+    "address": "",
+    "credit_card": "",
+    "column_d": "",
+    "column_e": "",
+    "column_f": "",
+    "column_g": "",
+    "column_h": ""
+  },
+  "action_type": "row_created",
+  "timestamp": "2025-06-23T19:32:07.284651",
+  "user_email": "current-user"
+}

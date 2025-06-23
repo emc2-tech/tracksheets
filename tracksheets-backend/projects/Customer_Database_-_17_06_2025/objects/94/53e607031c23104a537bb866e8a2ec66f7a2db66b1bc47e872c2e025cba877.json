@@ -1,0 +1,122 @@
+{
+  "type": "column_configuration",
+  "columns": [
+    {
+      "id": "A",
+      "name": "Name",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "PII",
+      "required": true,
+      "validation": "name"
+    },
+    {
+      "id": "B",
+      "name": "Address",
+      "type": "text",
+      "width": 200,
+      "sensitivity": "PII",
+      "required": true,
+      "validation": "text"
+    },
+    {
+      "id": "C",
+      "name": "Postcode",
+      "type": "text",
+      "width": 100,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "postcode"
+    },
+    {
+      "id": "D",
+      "name": "Date of Birth",
+      "type": "date",
+      "width": 150,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "date"
+    },
+    {
+      "id": "E",
+      "name": "Telephone Number",
+      "type": "text",
+      "width": 140,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "phone"
+    },
+    {
+      "id": "F",
+      "name": "Email",
+      "type": "text",
+      "width": 180,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "email"
+    },
+    {
+      "id": "G",
+      "name": "Original Loan Amount",
+      "type": "number",
+      "width": 160,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "currency"
+    },
+    {
+      "id": "H",
+      "name": "Regular Payment Amount",
+      "type": "number",
+      "width": 160,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "currency"
+    },
+    {
+      "id": "I",
+      "name": "Payment Frequency",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "frequency"
+    },
+    {
+      "id": "J",
+      "name": "Loan Amount Outstanding",
+      "type": "number",
+      "width": 160,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "currency"
+    },
+    {
+      "id": "K",
+      "name": "Credit Card Number",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "PCI",
+      "required": false,
+      "validation": "creditcard"
+    },
+    {
+      "id": "L",
+      "name": "Send for Validation",
+      "type": "action",
+      "width": 140,
+      "sensitivity": "Standard"
+    },
+    {
+      "id": "M",
+      "name": "Customer Validation",
+      "type": "status",
+      "width": 140,
+      "sensitivity": "Standard"
+    }
+  ],
+  "action_type": "column_update",
+  "timestamp": "2025-06-17T21:51:17.915902",
+  "user_email": "system@customer database",
+  "workbook_name": "Customer Database - 17/06/2025"
+}

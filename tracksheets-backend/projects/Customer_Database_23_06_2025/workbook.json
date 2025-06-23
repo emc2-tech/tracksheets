@@ -1,11 +1,11 @@
 {
-  "id": "4cdeb3e2c885",
-  "name": "CRM",
-  "template": "Blank workbook",
-  "category": "General",
+  "id": "2fdf2bd54cd8",
+  "name": "Customer_Database_23_06_2025",
+  "template": "Customer_Database",
+  "category": "Business",
   "version": "1.0",
-  "created_at": "2025-06-17T21:32:05.341698",
-  "updated_at": "2025-06-17T21:32:05.341706",
+  "created_at": "2025-06-23T21:07:35.354099",
+  "updated_at": "2025-06-23T21:07:35.354109",
   "created_by": "anonymous@user.com",
   "settings": {
     "auto_backup": true,

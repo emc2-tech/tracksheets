@@ -1,0 +1,7 @@
+{
+  "backend_url": "http://localhost:5009",
+  "port": 5009,
+  "status": "running",
+  "timestamp": "2025-06-23T20:59:30.438891",
+  "version": "2.0.0-self-contained"
+}

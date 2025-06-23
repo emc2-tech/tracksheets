@@ -1,0 +1,35 @@
+{
+  "type": "template_initialization",
+  "template": "Personal Monthly Budget",
+  "columns": [
+    "Category",
+    "Budgeted Amount",
+    "Actual Amount",
+    "Difference",
+    "Notes"
+  ],
+  "rows": [
+    [
+      "Housing",
+      "1200",
+      "1200",
+      "0",
+      "Rent and utilities"
+    ],
+    [
+      "Food",
+      "400",
+      "0",
+      "400",
+      "Groceries and dining"
+    ],
+    [
+      "Transportation",
+      "300",
+      "0",
+      "300",
+      "Car payment and gas"
+    ]
+  ],
+  "created_at": "2025-06-17T21:58:04.353783"
+}

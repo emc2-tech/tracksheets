@@ -366,19 +366,7 @@ class WorkbookManager:
                 clicked_at TIMESTAMP,
                 FOREIGN KEY (validation_id) REFERENCES customer_validations(id)
             );
-            
-            -- Column Configurations (for THIS workbook only)
-            CREATE TABLE column_configurations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                column_id VARCHAR(10),
-                column_name VARCHAR(255),
-                data_type VARCHAR(50),
-                sensitivity_level VARCHAR(50),
-                validation_rules JSON,
-                is_required BOOLEAN DEFAULT FALSE,
-                display_width INTEGER DEFAULT 150,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+                  
             
             -- Indexes
             CREATE INDEX idx_change_log_timestamp ON change_log(timestamp);
@@ -421,7 +409,7 @@ class WorkbookManager:
             'database_version': '1.0'
         }
     
-    def _apply_template(self, workbook_path: Path, template: str):
+    def _apply_template(self, workbook_path, template):
         """Apply template-specific initial data"""
         templates = {
             'Customer Database': {

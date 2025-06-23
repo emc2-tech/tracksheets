@@ -1,0 +1,30 @@
+{
+  "type": "column_configuration",
+  "columns": [
+    {
+      "id": "A",
+      "name": "Column A",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard"
+    },
+    {
+      "id": "B",
+      "name": "Column B",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard"
+    },
+    {
+      "id": "C",
+      "name": "Column C",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard"
+    }
+  ],
+  "action_type": "column_update",
+  "timestamp": "2025-06-23T19:01:38.965473",
+  "user_email": "system@tracksheets.com",
+  "workbook_name": "CRM_v2"
+}

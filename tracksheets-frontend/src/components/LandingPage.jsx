@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import TrackSheetsApp from './Worksheet';
+import backendService from '../services/backendService';
 
 export default function ExcelLandingPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,56 +39,64 @@ export default function ExcelLandingPage() {
 
   const templates = [
     { 
-      name: 'Blank workbook', 
+      name: 'Blank_Workbook', 
+      displayName: 'Blank Workbook',
       icon: Grid3X3, 
       description: 'Start with a clean slate',
       category: 'General',
       preview: 'bg-white border-2 border-gray-300'
     },
     { 
-      name: 'Personal Monthly Budget', 
+      name: 'Personal_Monthly_Budget', 
+      displayName: 'Personal Monthly Budget',
       icon: Calculator, 
       description: 'Track your personal expenses and income',
       category: 'Budget',
       preview: 'bg-green-50 border-2 border-green-200'
     },
     { 
-      name: 'Sales Report', 
+      name: 'Sales_Report', 
+      displayName: 'Sales Report',
       icon: TrendingUp, 
       description: 'Analyze sales performance and trends',
       category: 'Business',
       preview: 'bg-blue-50 border-2 border-blue-200'
     },
     { 
-      name: 'Project Timeline', 
+      name: 'Project_Timeline', 
+      displayName: 'Project Timeline',
       icon: Calendar, 
       description: 'Plan and track project milestones',
       category: 'Project',
       preview: 'bg-purple-50 border-2 border-purple-200'
     },
     { 
-      name: 'Expense Tracker', 
+      name: 'Expense_Tracker', 
+      displayName: 'Expense Tracker',
       icon: PieChart, 
       description: 'Monitor spending by category',
       category: 'Budget',
       preview: 'bg-yellow-50 border-2 border-yellow-200'
     },
     { 
-      name: 'Customer Database', 
+      name: 'Customer_Database', 
+      displayName: 'Customer Database',
       icon: FileSpreadsheet, 
       description: 'Manage customer information and data',
       category: 'Business',
       preview: 'bg-red-50 border-2 border-red-200'
     },
     { 
-      name: 'Inventory List', 
+      name: 'Inventory_List', 
+      displayName: 'Inventory List',
       icon: ClipboardList, 
       description: 'Track products and stock levels',
       category: 'Business',
       preview: 'bg-indigo-50 border-2 border-indigo-200'
     },
     { 
-      name: 'Task Planner', 
+      name: 'Task_Planner', 
+      displayName: 'Task Planner',
       icon: FileText, 
       description: 'Organize tasks and deadlines',
       category: 'Planning',
@@ -146,24 +155,18 @@ export default function ExcelLandingPage() {
       setNameCheckStatus(null);
       return;
     }
-
+  
     try {
       setNameCheckStatus('checking');
       
-      const response = await fetch(`http://localhost:5000/api/workbook/check-name/${encodeURIComponent(name.trim())}`);
-      const result = await response.json();
+      const result = await backendService.get(`/api/workbook/check-name/${encodeURIComponent(name.trim())}`);
       
-      if (response.ok) {
-        if (result.available) {
-          setNameCheckStatus('available');
-          console.log(`✅ Name "${name}" is available`);
-        } else {
-          setNameCheckStatus('exists');
-          console.log(`❌ Name "${name}" already exists`);
-        }
+      if (result.available) {
+        setNameCheckStatus('available');
+        console.log(`✅ Name "${name}" is available`);
       } else {
-        setNameCheckStatus('error');
-        console.error('Error checking name availability:', result);
+        setNameCheckStatus('exists');
+        console.log(`❌ Name "${name}" already exists`);
       }
     } catch (error) {
       setNameCheckStatus('error');
@@ -171,137 +174,146 @@ export default function ExcelLandingPage() {
     }
   };
 
-  // Handle workbook name changes with debounced availability checking
+  // 🔧 REPLACE your handleWorkbookNameChange function with this:
   const handleWorkbookNameChange = (newName) => {
     setWorkbookName(newName);
     
-    // Debounce name checking
+    // Clear previous timeout
     if (window.nameCheckTimeout) {
       clearTimeout(window.nameCheckTimeout);
     }
     
+    // 🆕 IMMEDIATE validation feedback (no delay)
+    const validation = validateWorkbookName(newName);
+    if (!validation.valid) {
+      setNameCheckStatus('invalid');
+      setValidationMessage(validation.error);
+      console.log(`❌ Invalid name: ${validation.error}`);
+      return; // Don't check availability if format is invalid
+    }
+    
+    // Clear invalid status if name becomes valid
+    if (nameCheckStatus === 'invalid') {
+      setNameCheckStatus(null);
+      setValidationMessage('');
+    }
+    
+    // Debounce availability checking for valid names only
     window.nameCheckTimeout = setTimeout(() => {
       checkNameAvailability(newName);
-    }, 500); // Check after 500ms of no typing
+    }, 500);
   };
+
+  // 🔧 REPLACE your handleTemplateClick function with this:
   const handleTemplateClick = (template) => {
     setSelectedTemplate(template);
-    setWorkbookName(`${template.name} - ${new Date().toLocaleDateString()}`);
+    
+    // 🆕 NEW: Create underscore-friendly default name
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('en-GB').replace(/\//g, '_'); // DD_MM_YYYY
+    const templateNameSafe = template.name.replace(/\s+/g, '_'); // Replace spaces with underscores
+    
+    setWorkbookName(`${templateNameSafe}_${dateStr}`);
     setShowNameDialog(true);
   };
 
+  const handleNameInputChange = (e) => {
+    let newValue = e.target.value;
+    
+    // 🆕 OPTION 1: Prevent spaces entirely (replace spaces with underscores)
+    newValue = newValue.replace(/\s+/g, '_');
+    
+    // 🆕 OPTION 2: Or block spaces completely (uncomment this instead of above)
+    // if (newValue.includes(' ')) {
+    //   setValidationMessage('❌ Spaces are not allowed. Use underscores (_) instead.');
+    //   setNameCheckStatus('invalid');
+    //   return; // Don't update the field
+    // }
+    
+    handleWorkbookNameChange(newValue);
+  };
+
+
   // Handle workbook creation
   const handleCreateWorkbook = async () => {
+    // 🆕 STEP 1: Validate name format before proceeding
+    const validation = validateWorkbookName(workbookName);
+    if (!validation.valid) {
+      alert(`❌ Invalid workbook name: ${validation.error}`);
+      setNameCheckStatus('invalid');
+      setValidationMessage(validation.error);
+      return; // Block creation
+    }
+  
+    // 🆕 STEP 2: Check if name is available
+    if (nameCheckStatus !== 'available') {
+      if (nameCheckStatus === 'exists') {
+        alert('❌ This workbook name already exists. Please choose a different name.');
+        return;
+      } else if (nameCheckStatus === 'checking') {
+        alert('⏳ Please wait while we check name availability.');
+        return;
+      } else {
+        // Force a name availability check if status is unclear
+        console.log('🔄 Forcing name availability check...');
+        await checkNameAvailability(workbookName);
+        if (nameCheckStatus !== 'available') {
+          alert('❌ Please choose a valid, available workbook name.');
+          return;
+        }
+      }
+    }
+  
+    // 🆕 STEP 3: Final validation before backend call
     if (!workbookName.trim()) {
-      alert('Please enter a workbook name');
+      alert('❌ Please enter a workbook name');
       return;
     }
-
+  
+    console.log(`✅ All validations passed. Creating workbook: "${workbookName}"`);
+  
     try {
-      console.log('🚀 Sending workbook creation request to Python backend...');
+      console.log('🚀 Sending workbook creation request to backend...');
       
-      // Call Python backend to create workbook
-      const response = await fetch('http://localhost:5000/api/workbook/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: workbookName,
-          template: selectedTemplate.name,
-          category: selectedTemplate.category
-        })
+      const result = await backendService.post('/api/workbook/create', {
+        name: workbookName,           // Use the validated name as-is (no spaces)
+        template: selectedTemplate.name,  // Use internal template name (with underscores)
+        category: selectedTemplate.category
       });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        console.log('✅ Python backend response:', result);
-        
-        // Store workbook data in state for the main app
+  
+      if (result.success) {
+        console.log('✅ Backend response:', result);
         setWorkbookData({
           ...result,
-          isNew: true  // 🎯 KEY: Mark as new workbook
+          isNew: true
         });
-        
-        // Close dialog and open main app
         setShowNameDialog(false);
         setShowMainApp(true);
-        
       } else {
-        // Handle different types of errors
-        if (response.status === 409 && result.error === 'workbook_already_exists') {
-          // Workbook already exists error
-          console.log('❌ Workbook already exists:', result);
-          
-          const conflictDetails = result.details;
-          const suggestions = result.suggestions || [];
-          
-          let errorMessage = `❌ Workbook "${workbookName}" already exists!\n\n`;
-          
-          // Add conflict details
-          if (conflictDetails.conflict_type === 'both') {
-            errorMessage += `💾 Found in database AND file system\n`;
-          } else if (conflictDetails.conflict_type === 'database') {
-            errorMessage += `💾 Found in database\n`;
-          } else if (conflictDetails.conflict_type === 'filesystem') {
-            errorMessage += `📁 Found in file system\n`;
-          }
-          
-          // Add existing workbook info if available
-          if (conflictDetails.existing_info?.database?.workbook_info) {
-            const dbInfo = conflictDetails.existing_info.database.workbook_info;
-            errorMessage += `\n📊 Existing workbook:\n- ID: ${dbInfo.id}\n- Created: ${dbInfo.created_at}\n`;
-          }
-          
-          // Add suggestions
-          if (suggestions.length > 0) {
-            errorMessage += `\n💡 Suggestions:\n`;
-            suggestions.forEach((suggestion, index) => {
-              errorMessage += `${index + 1}. ${suggestion}\n`;
-            });
-          }
-          
-          alert(errorMessage);
-          
-          // Auto-suggest a new name
-          if (suggestions.length > 0) {
-            const newSuggestion = suggestions[0].replace(/^Try a different name like "/, '').replace(/"$/, '');
-            setWorkbookName(newSuggestion);
-          }
-          
-        } else {
-          // Other errors
-          throw new Error(result.message || 'Failed to create workbook');
-        }
+        console.error('❌ Backend error:', result);
+        alert(`❌ Failed to create workbook: ${result.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('❌ Error creating workbook:', error);
-      
-      if (error.message.includes('Failed to fetch')) {
-        alert('❌ Cannot connect to Python backend!\n\nMake sure to:\n1. Install Flask: pip install flask flask-cors\n2. Run the Python backend: python app.py\n3. Backend should be running on http://localhost:5000');
-      } else {
-        alert(`❌ Failed to create workbook: ${error.message}`);
-      }
+      alert(`❌ Failed to create workbook: ${error.message}`);
     }
   };
 
   const handleOpenFile = async () => {
-    setShowOpenDialog(true);
-    setSelectedWorkbook(null);
-    await loadExistingWorkbooks();
-  };
+  setShowOpenDialog(true);
+  setSelectedWorkbook(null);
+  await loadExistingWorkbooks();
+};
 
-   // Load existing workbooks from backend
+  // Load existing workbooks from backend
   const loadExistingWorkbooks = async () => {
     try {
       setLoadingWorkbooks(true);
       console.log('🔍 Loading existing workbooks...');
       
-      const response = await fetch('http://localhost:5000/api/workbooks');
-      const result = await response.json();
+      const result = await backendService.get('/api/workbooks');
       
-      if (response.ok && result.success) {
+      if (result.success) {
         console.log('✅ Loaded workbooks:', result.workbooks);
         setExistingWorkbooks(result.workbooks);
         return result.workbooks;
@@ -322,12 +334,9 @@ export default function ExcelLandingPage() {
     try {
       console.log('📂 Opening workbook:', workbook.name);
       
-      // Get detailed workbook data from backend
-      const response = await fetch(`http://localhost:5000/api/workbook/${encodeURIComponent(workbook.name)}`);
-      const result = await response.json();
+      const result = await backendService.get(`/api/workbook/${encodeURIComponent(workbook.name)}`);
       
-      if (response.ok && result.success) {
-        // Load template data for the workbook
+      if (result.success) {
         const initialData = get_template_initial_data(workbook.template || 'Blank');
         
         const workbookData = {
@@ -336,12 +345,9 @@ export default function ExcelLandingPage() {
         };
         
         console.log('✅ Loaded workbook data:', workbookData);
-        
-        // Set workbook data and open main app
         setWorkbookData(workbookData);
         setShowOpenDialog(false);
         setShowMainApp(true);
-        
       } else {
         throw new Error(result.message || 'Failed to load workbook');
       }
@@ -351,10 +357,56 @@ export default function ExcelLandingPage() {
     }
   };
 
+  // Validate workbook name format (no spaces allowed)
+  const validateWorkbookName = (name) => {
+    const trimmed = name.trim();
+    
+    // Rules:
+    // - Must be at least 2 characters
+    // - Only letters, numbers, underscores, and hyphens allowed
+    // - No spaces allowed
+    // - Cannot start or end with underscore or hyphen
+    
+    if (trimmed.length < 2) {
+      return { valid: false, error: 'Name must be at least 2 characters long' };
+    }
+    
+    if (trimmed.length > 50) {
+      return { valid: false, error: 'Name must be less than 50 characters' };
+    }
+    
+    // Check for invalid characters (anything except letters, numbers, underscore, hyphen)
+    const invalidChars = /[^a-zA-Z0-9_-]/;
+    if (invalidChars.test(trimmed)) {
+      return { 
+        valid: false, 
+        error: 'Only letters, numbers, underscores (_) and hyphens (-) are allowed. No spaces.' 
+      };
+    }
+    
+    // Cannot start or end with underscore or hyphen
+    if (trimmed.startsWith('_') || trimmed.startsWith('-') || trimmed.endsWith('_') || trimmed.endsWith('-')) {
+      return { 
+        valid: false, 
+        error: 'Name cannot start or end with underscore or hyphen' 
+      };
+    }
+    
+    // Check for consecutive special characters
+    if (/[_-]{2,}/.test(trimmed)) {
+      return { 
+        valid: false, 
+        error: 'Cannot have consecutive underscores or hyphens' 
+      };
+    }
+    
+    return { valid: true, error: null };
+  };
+
   // Helper function to get template initial data (same as backend)
   const get_template_initial_data = (template) => {
     const templates = {
-      'Customer Database': {
+      'Customer_Database': {
         'columns': [
           'Name', 'Address', 'Postcode', 'Date of Birth', 'Telephone Number',
           'Email', 'Original Loan Amount', 'Regular Payment Amount',
@@ -362,7 +414,7 @@ export default function ExcelLandingPage() {
         ],
         'rows': []
       },
-      'Personal Monthly Budget': {
+      'Personal_Monthly_Budget': {
         'columns': ['Category', 'Budgeted Amount', 'Actual Amount', 'Difference', 'Notes'],
         'rows': [
           ['Housing', '1200', '1200', '0', 'Rent and utilities'],
@@ -370,23 +422,23 @@ export default function ExcelLandingPage() {
           ['Transportation', '300', '0', '300', 'Car payment and gas']
         ]
       },
-      'Project Timeline': {
+      'Project_Timeline': {
         'columns': ['Task', 'Start Date', 'End Date', 'Status', 'Assigned To', 'Priority'],
         'rows': []
       },
-      'Sales Report': {
+      'Sales_Report': {
         'columns': ['Date', 'Product', 'Sales Amount', 'Units Sold', 'Region'],
         'rows': []
       },
-      'Expense Tracker': {
+      'Expense_Tracker': {
         'columns': ['Date', 'Category', 'Description', 'Amount', 'Payment Method'],
         'rows': []
       },
-      'Inventory List': {
+      'Inventory_List': {
         'columns': ['Item Name', 'Category', 'Quantity', 'Unit Price', 'Total Value', 'Supplier'],
         'rows': []
       },
-      'Task Planner': {
+      'Task_Planner': {
         'columns': ['Task', 'Priority', 'Due Date', 'Status', 'Notes'],
         'rows': []
       }
@@ -426,7 +478,7 @@ export default function ExcelLandingPage() {
   };
 
   const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    template.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     template.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -728,7 +780,7 @@ if (showMainApp) {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Template: {selectedTemplate?.name}
+                Template: {selectedTemplate?.displayName}
               </label>
               <div className="text-sm text-gray-500 mb-3">
                 {selectedTemplate?.description}
@@ -743,7 +795,7 @@ if (showMainApp) {
                 <input
                   type="text"
                   value={workbookName}
-                  onChange={(e) => handleWorkbookNameChange(e.target.value)}
+                  onChange={handleNameInputChange}
                   className={`w-full px-3 py-2 pr-10 border rounded-md focus:outline-none focus:ring-2 transition-colors ${
                     nameCheckStatus === 'available' ? 'border-green-300 focus:ring-green-500 bg-green-50' :
                     nameCheckStatus === 'exists' ? 'border-red-300 focus:ring-red-500 bg-red-50' :
@@ -752,7 +804,17 @@ if (showMainApp) {
                   }`}
                   placeholder="Enter workbook name..."
                   autoFocus
-                  onKeyPress={(e) => e.key === 'Enter' && nameCheckStatus === 'available' && handleCreateWorkbook()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && nameCheckStatus === 'available') {
+                      handleCreateWorkbook();
+                    }
+                    // 🆕 Block spaces on keypress too
+                    if (e.key === ' ') {
+                      e.preventDefault();
+                      setValidationMessage('❌ Spaces are not allowed. Use underscores (_) instead.');
+                      setNameCheckStatus('invalid');
+                    }
+                  }}
                 />
                 
                 {/* Status indicator */}
@@ -806,16 +868,18 @@ if (showMainApp) {
               </button>
               <button
                 onClick={handleCreateWorkbook}
-                disabled={!workbookName.trim() || nameCheckStatus === 'exists' || nameCheckStatus === 'checking'}
+                disabled={!workbookName.trim() || nameCheckStatus !== 'available' || nameCheckStatus === 'invalid'}
                 className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  !workbookName.trim() || nameCheckStatus === 'exists' || nameCheckStatus === 'checking'
+                  !workbookName.trim() || nameCheckStatus !== 'available' || nameCheckStatus === 'invalid'
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-green-600 text-white hover:bg-green-700'
                 }`}
               >
                 {nameCheckStatus === 'checking' ? 'Checking...' :
                  nameCheckStatus === 'exists' ? 'Name Unavailable' :
-                 'Create Workbook'}
+                 nameCheckStatus === 'invalid' ? 'Invalid Name' :
+                 nameCheckStatus === 'available' ? 'Create Workbook' :
+                 'Enter Valid Name'}
               </button>
             </div>
           </div>
@@ -831,3 +895,20 @@ if (showMainApp) {
     </div>
   );
 }
+
+
+<div className="fixed bottom-4 left-4 bg-white border p-3 rounded shadow">
+  <button 
+    onClick={async () => {
+      try {
+        const config = await backendService.get('/api/config');
+        alert(`✅ Connected to: ${backendService.getCurrentBackendUrl()}`);
+      } catch (error) {
+        alert(`❌ Error: ${error.message}`);
+      }
+    }}
+    className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+  >
+    Test Backend
+  </button>
+</div>
