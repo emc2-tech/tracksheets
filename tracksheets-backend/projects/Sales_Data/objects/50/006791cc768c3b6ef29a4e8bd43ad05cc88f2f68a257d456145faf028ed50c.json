@@ -1,0 +1,33 @@
+{
+  "row_index": 2,
+  "data": {
+    "ordernumber": "10134",
+    "quantity": 41,
+    "priceeach": 94.74,
+    "orderlinenumber": 2,
+    "sales": 3884.34,
+    "orderdate": "7/1/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": 3,
+    "month_id": 7,
+    "year_id": 2003,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Lyon Souveniers",
+    "phone": "+33 1 46 62 7555",
+    "addressline1": "27 rue du Colonel Pierre Avia",
+    "addressline2": "",
+    "city": "Paris",
+    "state": "",
+    "postalcode": 75508,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Da Cunha",
+    "contactfirstname": "Daniel",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-24T21:34:32.192346",
+  "user_email": "current-user"
+}

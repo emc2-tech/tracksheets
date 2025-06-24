@@ -4,7 +4,8 @@ import {
   FileText, 
   FolderOpen, 
   Search, 
-  Save, 
+  Upload, 
+  Save,
   Printer, 
   Share, 
   Download,
@@ -36,6 +37,10 @@ export default function ExcelLandingPage() {
   const [existingWorkbooks, setExistingWorkbooks] = useState([]);
   const [selectedWorkbook, setSelectedWorkbook] = useState(null);
   const [loadingWorkbooks, setLoadingWorkbooks] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   const templates = [
     { 
@@ -107,7 +112,7 @@ export default function ExcelLandingPage() {
   const sidebarItems = [
     { name: 'New', icon: FileText, action: 'new' },
     { name: 'Open', icon: FolderOpen, action: 'open' },
-    { name: 'Save', icon: Save, action: 'save' },
+    { name: 'Import', icon: Upload, action: 'import' },
     { name: 'Save As', icon: Save, action: 'saveAs' },
     { name: 'Print', icon: Printer, action: 'print' },
     { name: 'Share', icon: Share, action: 'share' },
@@ -126,8 +131,8 @@ export default function ExcelLandingPage() {
       case 'open':
         await handleOpenFile();
         break;
-      case 'save':
-        await handleSaveFile();
+      case 'import':
+        await handleImportFile();
         break;
       case 'saveAs':
         await handleSaveAsFile();
@@ -477,6 +482,125 @@ export default function ExcelLandingPage() {
     // TODO: Implement close functionality
   };
 
+  // NEW: Import CSV file functionality
+  const handleImportFile = async () => {
+    console.log('🔄 Starting CSV import process...');
+    setShowImportDialog(true);
+  };
+
+  // NEW: Handle file selection
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('Please select a CSV file');
+      return;
+    }
+
+    setImportFile(file);
+    setImportLoading(true);
+
+    try {
+      // Read file content
+      const fileContent = await readFileAsText(file);
+      
+      // Parse CSV with Papa Parse (you'll need to install this: npm install papaparse)
+      const Papa = await import('papaparse');
+      
+      const parseResult = Papa.parse(fileContent, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+        transformHeader: (header) => header.trim() // Clean headers
+      });
+
+      if (parseResult.errors.length > 0) {
+        console.error('CSV parsing errors:', parseResult.errors);
+        alert(`CSV parsing errors: ${parseResult.errors.map(e => e.message).join(', ')}`);
+        return;
+      }
+
+      console.log('✅ CSV parsed successfully:', parseResult.data.length, 'rows');
+      
+      setImportPreview({
+        headers: parseResult.meta.fields,
+        data: parseResult.data.slice(0, 5), // Show first 5 rows for preview
+        totalRows: parseResult.data.length,
+        fullData: parseResult.data
+      });
+
+    } catch (error) {
+      console.error('❌ Error reading CSV file:', error);
+      alert(`Error reading file: ${error.message}`);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // NEW: Helper function to read file as text
+  const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target.result);
+      reader.onerror = (error) => reject(error);
+      reader.readAsText(file);
+    });
+  };
+
+  // NEW: Create workbook from imported CSV
+  const createWorkbookFromImport = async () => {
+    if (!importPreview || !workbookName.trim()) {
+      alert('Please enter a workbook name');
+      return;
+    }
+
+    try {
+      console.log('🚀 Creating workbook from imported CSV...');
+      
+      // Prepare initial data
+      const importedData = {
+        columns: importPreview.headers,
+        rows: importPreview.fullData.map(row => 
+          importPreview.headers.map(header => row[header] || '')
+        )
+      };
+
+    const result = await backendService.post('/api/workbook/create', {
+      name: workbookName,
+      template: 'Imported CSV',
+      category: 'Imported',
+      created_by: 'csv-import@user.com',
+      initialData: importedData
+    });
+
+    if (result.success) {
+      console.log('✅ Workbook created from CSV import:', result);
+      
+      // Set workbook data and show main app
+      setWorkbookData({
+        ...result,
+        isNew: true,
+        initialData: importedData
+      });
+      
+      setShowImportDialog(false);
+      setShowMainApp(true);
+      
+      // Reset import state
+      setImportFile(null);
+      setImportPreview(null);
+      setWorkbookName('');
+    } else {
+      console.error('❌ Backend error:', result);
+      alert(`❌ Failed to create workbook: ${result.message || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('❌ Error creating workbook from import:', error);
+    alert(`❌ Failed to create workbook: ${error.message}`);
+  }
+};
+
   const filteredTemplates = templates.filter(template =>
     template.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     template.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -535,7 +659,9 @@ if (showMainApp) {
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">New</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              {activeCommand === 'Import' ? 'Import CSV File' : 'New'}
+            </h1>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -548,77 +674,212 @@ if (showMainApp) {
 
         {/* Search and Templates */}
         <div className="p-6">
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="relative max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search for online templates"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Suggested Searches */}
-          <div className="mb-6">
-            <span className="text-sm text-gray-600 mr-4">Suggested searches:</span>
-            <div className="inline-flex flex-wrap gap-2 mt-2">
-              {['Budget', 'Invoice', 'Calendar', 'Expense', 'List', 'Loan'].map((term, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSearchTerm(term)}
-                  className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700 transition-colors"
-                >
-                  {term}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Templates Grid - 3 across in square boxes */}
-          <div className="grid grid-cols-3 gap-4 max-w-4xl">
-            {filteredTemplates.map((template, index) => (
-              <button
-                key={index}
-                onClick={() => handleTemplateClick(template)}
-                className="group bg-white border border-gray-200 rounded-lg hover:shadow-lg hover:border-green-300 transition-all duration-200 p-3 text-left aspect-square flex flex-col"
-              >
-                {/* Template Preview - Square */}
-                <div className={`w-full flex-1 ${template.preview} rounded-lg mb-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-200`}>
-                  <template.icon className="w-6 h-6 text-gray-500" />
-                </div>
-                
-                {/* Template Info - Compact */}
-                <div className="flex-shrink-0">
-                  <h3 className="font-medium text-gray-900 group-hover:text-green-700 text-xs mb-1 line-clamp-2">
-                    {template.name}
-                  </h3>
-                  <span className="inline-block px-1 py-0.5 text-xs bg-gray-100 text-gray-600 rounded text-xs">
-                    {template.category}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* No Results Message */}
-          {filteredTemplates.length === 0 && searchTerm && (
-            <div className="text-center py-12">
-              <div className="text-gray-400 mb-2">
-                <Search className="w-12 h-12 mx-auto" />
+          {activeCommand === 'Import' ? (
+            // NEW: Import interface (shown when Import is active)
+            <div className="max-w-4xl">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Import CSV Data</h2>
+                <p className="text-gray-600">
+                  Select a CSV file from your computer to create a new workbook with your data.
+                </p>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No templates found</h3>
-              <p className="text-gray-500">Try searching for a different term or browse all templates.</p>
-              <button 
-                onClick={() => setSearchTerm('')}
-                className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              >
-                Show All Templates
-              </button>
+              
+              {!importPreview ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Choose CSV File</h3>
+                  <p className="text-gray-500 mb-4">Select a CSV file to import your data</p>
+                  
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <div className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer">
+                      {importLoading ? 'Processing...' : 'Browse Files'}
+                    </div>
+                  </label>
+                  
+                  {importLoading && (
+                    <div className="mt-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto"></div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Preview imported data
+                <div className="space-y-6">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-2">
+                      ✅ CSV Imported Successfully
+                    </h3>
+                    <p className="text-green-700 text-sm">
+                      Found {importPreview.totalRows} rows with {importPreview.headers.length} columns
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-4">Data Preview (first 5 rows):</h3>
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {importPreview.headers.map((header, index) => (
+                              <th key={index} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {importPreview.data.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {importPreview.headers.map((header, colIndex) => (
+                                <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {row[header] || ''}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Workbook Name
+                      </label>
+                      <input
+                        type="text"
+                        value={workbookName}
+                        onChange={(e) => handleWorkbookNameChange(e.target.value)}
+                        className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="Enter workbook name..."
+                      />
+                      
+                      {nameCheckStatus && (
+                        <div className={`mt-2 text-sm ${
+                          nameCheckStatus === 'available' ? 'text-green-600' :
+                          nameCheckStatus === 'exists' ? 'text-red-600' :
+                          nameCheckStatus === 'checking' ? 'text-yellow-600' :
+                          'text-orange-600'
+                        }`}>
+                          {nameCheckStatus === 'checking' && '🔍 Checking availability...'}
+                          {nameCheckStatus === 'available' && '✅ Name is available!'}
+                          {nameCheckStatus === 'exists' && '❌ Name already exists'}
+                          {nameCheckStatus === 'error' && '⚠️ Error checking name'}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={createWorkbookFromImport}
+                        disabled={!workbookName.trim() || nameCheckStatus === 'exists'}
+                        className={`px-6 py-3 rounded-md font-medium ${
+                          !workbookName.trim() || nameCheckStatus === 'exists'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
+                      >
+                        Create Workbook
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setImportPreview(null);
+                          setImportFile(null);
+                          setWorkbookName('');
+                        }}
+                        className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                      >
+                        Choose Different File
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          ) : (
+            // Original template selection interface - YOUR EXISTING CODE
+            <>
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search for online templates"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Suggested Searches */}
+              <div className="mb-6">
+                <span className="text-sm text-gray-600 mr-4">Suggested searches:</span>
+                <div className="inline-flex flex-wrap gap-2 mt-2">
+                  {['Budget', 'Invoice', 'Calendar', 'Expense', 'List', 'Loan'].map((term, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSearchTerm(term)}
+                      className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700 transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Templates Grid - 3 across in square boxes */}
+              <div className="grid grid-cols-3 gap-4 max-w-4xl">
+                {filteredTemplates.map((template, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleTemplateClick(template)}
+                    className="group bg-white border border-gray-200 rounded-lg hover:shadow-lg hover:border-green-300 transition-all duration-200 p-3 text-left aspect-square flex flex-col"
+                  >
+                    {/* Template Preview - Square */}
+                    <div className={`w-full flex-1 ${template.preview} rounded-lg mb-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-200`}>
+                      <template.icon className="w-6 h-6 text-gray-500" />
+                    </div>
+                    
+                    {/* Template Info - Compact */}
+                    <div className="flex-shrink-0">
+                      <h3 className="font-medium text-gray-900 group-hover:text-green-700 text-xs mb-1 line-clamp-2">
+                        {template.name}
+                      </h3>
+                      <span className="inline-block px-1 py-0.5 text-xs bg-gray-100 text-gray-600 rounded text-xs">
+                        {template.category}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* No Results Message */}
+              {filteredTemplates.length === 0 && searchTerm && (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-2">
+                    <Search className="w-12 h-12 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No templates found</h3>
+                  <p className="text-gray-500">Try searching for a different term or browse all templates.</p>
+                  <button 
+                    onClick={() => setSearchTerm('')}
+                    className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    Show All Templates
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

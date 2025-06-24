@@ -1,0 +1,234 @@
+{
+  "type": "column_configuration",
+  "columns": [
+    {
+      "id": "A",
+      "name": "ORDERNUMBER",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "text"
+    },
+    {
+      "id": "B",
+      "name": "QUANTITY",
+      "type": "number",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "text"
+    },
+    {
+      "id": "C",
+      "name": "PRICEEACH",
+      "type": "number",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": true,
+      "validation": "currency"
+    },
+    {
+      "id": "D",
+      "name": "ORDERLINENUMBER",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "E",
+      "name": "SALES",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "F",
+      "name": "ORDERDATE",
+      "type": "date",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "date"
+    },
+    {
+      "id": "G",
+      "name": "STATUS",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "H",
+      "name": "QTR_ID",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "I",
+      "name": "MONTH_ID",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "J",
+      "name": "YEAR_ID",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "K",
+      "name": "PRODUCTLINE",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "L",
+      "name": "MSRP",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "M",
+      "name": "PRODUCTCODE",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "N",
+      "name": "CUSTOMERNAME",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "name"
+    },
+    {
+      "id": "O",
+      "name": "PHONE",
+      "type": "text",
+      "width": 140,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "phone"
+    },
+    {
+      "id": "P",
+      "name": "ADDRESSLINE1",
+      "type": "text",
+      "width": 200,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "Q",
+      "name": "ADDRESSLINE2",
+      "type": "text",
+      "width": 200,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "R",
+      "name": "CITY",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "S",
+      "name": "STATE",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "T",
+      "name": "POSTALCODE",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "U",
+      "name": "COUNTRY",
+      "type": "number",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "V",
+      "name": "TERRITORY",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "W",
+      "name": "CONTACTLASTNAME",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "name"
+    },
+    {
+      "id": "X",
+      "name": "CONTACTFIRSTNAME",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "PII",
+      "required": false,
+      "validation": "name"
+    },
+    {
+      "id": "Y",
+      "name": "DEALSIZE",
+      "type": "text",
+      "width": 150,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    }
+  ],
+  "action_type": "column_update",
+  "timestamp": "2025-06-24T21:32:43.266987",
+  "user_email": "frontend@user.com",
+  "workbook_name": "Sales_Data"
+}

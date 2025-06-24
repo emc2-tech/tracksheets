@@ -1,0 +1,33 @@
+{
+  "row_index": 0,
+  "data": {
+    "ordernumber": 10107,
+    "quantityordered": 30,
+    "priceeach": 95.7,
+    "orderlinenumber": 2,
+    "sales": 2871,
+    "orderdate": "2/24/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": 1,
+    "month_id": 2,
+    "year_id": 2003,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Land of Toys Inc.",
+    "phone": 2125557818,
+    "addressline1": "897 Long Airport Avenue",
+    "addressline2": "",
+    "city": "NYC",
+    "state": "NY",
+    "postalcode": 10022,
+    "country": 0,
+    "territory": "NA",
+    "contactlastname": "Yu",
+    "contactfirstname": "Kwai",
+    "dealsize": "Small"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-24T21:31:46.371056",
+  "user_email": "current-user"
+}
