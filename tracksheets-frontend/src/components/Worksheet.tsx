@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+
 import { 
   Save, 
   Share2, 
@@ -19,6 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import backendService from '../services/backendService';
 
 export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport }) {
@@ -38,6 +39,9 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
   const [validationMessage, setValidationMessage] = useState('');
   const [emailDetails, setEmailDetails] = useState({ customer: '', email: '', change: '' });
   const [validationErrors, setValidationErrors] = useState({});
+
+  const saveTimeoutRef = useRef(null);
+  const pendingChangesRef = useRef(new Map());
 
   // Column Configuration State
   const [columnConfigForm, setColumnConfigForm] = useState({
@@ -60,6 +64,505 @@ export default function TrackSheetsApp({ workbookData, onClose, onSave, onExport
 
   // Debug workbook data
   console.log('🔍 TrackSheetsApp received workbookData:', workbookData);
+
+  // Virtual Scrolling Component - ADD THIS
+  const VirtualizedTable = React.memo(({ 
+    data, 
+    columns, 
+    onCellEdit, 
+    editingCell,
+    editValue,
+    setEditValue,
+    onKeyPress,
+    selectedCell,
+    setSelectedCell,
+    validationStatus,
+    pendingChanges,
+    businessActions,
+    gitHashes,
+    sendForValidation,
+    simulateCustomerApproval,
+    getCustomerValidationStatus,
+    maskCreditCard,
+    fetchRowHistory,
+    selectedRowHistory,
+    setSelectedRowHistory,
+    getRowHistory
+  }) => {
+    const [visibleRange, setVisibleRange] = useState({ start: 0, end: 100 });
+    const [expandedRows, setExpandedRows] = useState(new Set());
+    const containerRef = useRef(null);
+    
+    // 🔧 FIXED: Exact measurements for perfect alignment
+    const BASE_ROW_HEIGHT = 45; // Exact height including borders
+    const EXPANDED_ROW_HEIGHT = 300;
+    const BUFFER_SIZE = 20;
+  
+    // Calculate dynamic row heights
+    const getRowHeight = useCallback((rowIndex) => {
+      return expandedRows.has(rowIndex) ? BASE_ROW_HEIGHT + EXPANDED_ROW_HEIGHT : BASE_ROW_HEIGHT;
+    }, [expandedRows]);
+  
+    // Calculate total height and positions
+    const { totalHeight, rowPositions } = useMemo(() => {
+      const positions = [];
+      let currentTop = 0;
+      
+      for (let i = 0; i < data.length; i++) {
+        positions[i] = currentTop;
+        currentTop += getRowHeight(i);
+      }
+      
+      return {
+        totalHeight: currentTop,
+        rowPositions: positions
+      };
+    }, [data.length, getRowHeight]);
+  
+    // Handle scroll with precise calculations
+    const handleScroll = useCallback((e) => {
+      const scrollTop = e.target.scrollTop;
+      const containerHeight = e.target.clientHeight;
+      
+      let start = 0;
+      for (let i = 0; i < rowPositions.length; i++) {
+        if (rowPositions[i] >= scrollTop - BUFFER_SIZE * BASE_ROW_HEIGHT) {
+          start = Math.max(0, i - BUFFER_SIZE);
+          break;
+        }
+      }
+      
+      let end = data.length;
+      for (let i = start; i < rowPositions.length; i++) {
+        if (rowPositions[i] > scrollTop + containerHeight + BUFFER_SIZE * BASE_ROW_HEIGHT) {
+          end = Math.min(data.length, i + BUFFER_SIZE);
+          break;
+        }
+      }
+      
+      setVisibleRange({ start, end });
+    }, [rowPositions, data.length, totalHeight]);
+  
+    // Toggle row history
+    const toggleRowHistory = useCallback((rowIndex) => {
+      setExpandedRows(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(rowIndex)) {
+          newSet.delete(rowIndex);
+          setSelectedRowHistory(null);
+        } else {
+          newSet.add(rowIndex);
+          setSelectedRowHistory(rowIndex);
+        }
+        return newSet;
+      });
+    }, [setSelectedRowHistory]);
+  
+    // Visible rows calculation
+    const visibleRows = useMemo(() => {
+      return Array.from({ length: visibleRange.end - visibleRange.start }, (_, index) => {
+        const originalIndex = visibleRange.start + index;
+        return {
+          row: data[originalIndex],
+          originalIndex,
+          isExpanded: expandedRows.has(originalIndex)
+        };
+      });
+    }, [data, visibleRange, expandedRows]);
+  
+    return (
+      <div className="flex flex-col border border-gray-300 rounded-lg overflow-hidden bg-white">
+        {/* 🔧 FIXED: Header with exact alignment */}
+        <div className="bg-gray-100 border-b border-gray-300 sticky top-0 z-10">
+          <div className="flex">
+            <div 
+              className="border-r border-gray-300 p-2 text-center text-sm font-medium text-gray-700 bg-gray-100 flex items-center justify-center"
+              style={{ width: '48px', minWidth: '48px', height: '44px' }}
+            >
+              #
+            </div>
+            {columns.map((col) => (
+              <div 
+                key={col.id} 
+                className="border-r border-gray-300 p-2 text-left text-sm font-medium text-gray-700 bg-gray-100 group hover:bg-gray-200 cursor-pointer flex items-center"
+                style={{ 
+                  width: col.width || 150, 
+                  minWidth: col.width || 150,
+                  height: '44px'
+                }}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center space-x-2">
+                    <span className="truncate">{col.name}</span>
+                    {col.required && <span className="text-red-500 text-xs font-bold">*</span>}
+                    {col.sensitivity && col.sensitivity !== 'Standard' && (
+                      <span className={`text-xs px-1 py-0.5 rounded-full ${
+                        col.sensitivity === 'PII' ? 'bg-blue-100 text-blue-800' :
+                        col.sensitivity === 'PCI' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {col.sensitivity}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+  
+        {/* 🔧 FIXED: Virtual scrolling container with more screen space */}
+        <div 
+          ref={containerRef}
+          className="overflow-auto"
+          onScroll={handleScroll}
+          style={{ 
+            height: 'calc(100vh - 200px)', // Use most of the screen height
+            width: '100%'
+          }}
+        >
+          <div 
+            style={{ 
+              height: totalHeight, 
+              position: 'relative',
+              width: '100%',
+              minHeight: totalHeight // Ensure container is tall enough to scroll
+            }}
+          >
+            {visibleRows.map(({ row, originalIndex, isExpanded }) => (
+              <VirtualizedRowWithHistory
+                key={originalIndex}
+                row={row}
+                rowIndex={originalIndex}
+                columns={columns}
+                isExpanded={isExpanded}
+                position={rowPositions[originalIndex]}
+                height={getRowHeight(originalIndex)}
+                onToggleHistory={toggleRowHistory}
+                editingCell={editingCell}
+                editValue={editValue}
+                setEditValue={setEditValue}
+                onKeyPress={onKeyPress}
+                selectedCell={selectedCell}
+                setSelectedCell={setSelectedCell}
+                onCellEdit={onCellEdit}
+                validationStatus={validationStatus}
+                pendingChanges={pendingChanges}
+                sendForValidation={sendForValidation}
+                getCustomerValidationStatus={getCustomerValidationStatus}
+                maskCreditCard={maskCreditCard}
+                fetchRowHistory={fetchRowHistory}
+                getRowHistory={getRowHistory}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  });
+  
+  // 🚀 FIXED: Row component with precise alignment
+  const VirtualizedRowWithHistory = React.memo(({
+    row,
+    rowIndex,
+    columns,
+    isExpanded,
+    position,
+    height,
+    onToggleHistory,
+    editingCell,
+    editValue,
+    setEditValue,
+    onKeyPress,
+    selectedCell,
+    setSelectedCell,
+    onCellEdit,
+    validationStatus,
+    pendingChanges,
+    sendForValidation,
+    getCustomerValidationStatus,
+    maskCreditCard,
+    fetchRowHistory,
+    getRowHistory
+  }) => {
+    return (
+      <div
+        className="absolute left-0 right-0"
+        style={{ 
+          top: position,
+          height: height
+        }}
+      >
+        {/* 🔧 FIXED: Main row with exact measurements */}
+        <div className="flex border-b border-gray-300 hover:bg-gray-50">
+          {/* Row Number - Clickable for History */}
+          <div 
+            className="border-r border-gray-300 p-1 text-center bg-gray-50 flex items-center justify-center"
+            style={{ width: '48px', minWidth: '48px', height: '44px' }}
+          >
+            <button
+              onClick={() => onToggleHistory(rowIndex)}
+              className={`w-8 h-6 text-xs font-medium rounded transition-colors ${
+                isExpanded
+                  ? 'bg-blue-500 text-white'
+                  : getRowHistory && getRowHistory(rowIndex).length > 0
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
+              title={isExpanded ? 'Hide history' : 'Show history'}
+            >
+              {rowIndex + 1}
+            </button>
+          </div>
+  
+          {/* Data Cells */}
+          {columns.map((col, colIndex) => (
+            <div 
+              key={`${rowIndex}-${colIndex}`}
+              className={`border-r border-gray-300 p-2 text-sm cursor-cell relative flex items-center ${
+                selectedCell === `${rowIndex}-${colIndex}` ? 'bg-blue-100 border-blue-500' : ''
+              } ${
+                editingCell === `${rowIndex}-${colIndex}` ? 'bg-yellow-100 border-yellow-500' : ''
+              }`}
+              style={{ 
+                width: col.width || 150, 
+                minWidth: col.width || 150,
+                height: '44px'
+              }}
+              onClick={() => setSelectedCell(`${rowIndex}-${colIndex}`)}
+              onDoubleClick={() => {
+                if (col.type !== 'action' && col.type !== 'status') {
+                  onCellEdit(rowIndex, colIndex);
+                }
+              }}
+            >
+              {editingCell === `${rowIndex}-${colIndex}` ? (
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => onKeyPress(e, rowIndex, colIndex)}
+                  onBlur={async () => {
+                    // Handle blur
+                  }}
+                  className="w-full bg-transparent border-0 outline-none p-0 text-sm"
+                  autoFocus
+                />
+              ) : col.type === 'boolean' ? (
+                <input 
+                  type="checkbox" 
+                  checked={row[colIndex] || false}
+                  className="w-4 h-4"
+                />
+              ) : col.type === 'action' ? (
+                <div className="flex items-center justify-center w-full">
+                  {pendingChanges && pendingChanges.has(rowIndex) ? (
+                    <button
+                      onClick={() => sendForValidation(rowIndex)}
+                      className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors"
+                    >
+                      Send
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </div>
+              ) : col.type === 'status' ? (
+                <div className="flex items-center justify-between w-full">
+                  {getCustomerValidationStatus && (
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCustomerValidationStatus(rowIndex).color}`}>
+                      <span className="mr-1">{getCustomerValidationStatus(rowIndex).icon}</span>
+                      {getCustomerValidationStatus(rowIndex).label}
+                    </span>
+                  )}
+                </div>
+              ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
+                <span className="font-mono text-sm truncate">
+                  {maskCreditCard && maskCreditCard(row[colIndex])}
+                </span>
+              ) : col.type === 'number' && row[colIndex] ? (
+                <span className="truncate">
+                  {col.validation === 'currency' ? 
+                    `€${Number(row[colIndex]).toLocaleString()}` : 
+                    row[colIndex]
+                  }
+                </span>
+              ) : (
+                <span className="truncate">{row[colIndex] || ''}</span>
+              )}
+            </div>
+          ))}
+        </div>
+  
+        {/* Expanded Row History */}
+        {isExpanded && (
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mx-2 mb-2 rounded shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-lg text-gray-900 flex items-center">
+                <History className="w-5 h-5 mr-2 text-blue-600" />
+                Row History: {row[0] || `Row ${rowIndex + 1}`}
+              </h4>
+              <button 
+                onClick={() => onToggleHistory(rowIndex)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold px-3 py-1 hover:bg-gray-200 rounded"
+              >
+                ×
+              </button>
+            </div>
+            
+            <RowHistoryViewer 
+              rowIndex={rowIndex} 
+              columns={columns}
+              fetchHistory={fetchRowHistory}
+            />
+          </div>
+        )}
+      </div>
+    );
+  });
+  
+  // Row History Viewer Component
+  const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+  
+    useEffect(() => {
+      const loadHistory = async () => {
+        setLoading(true);
+        try {
+          const historyData = await fetchHistory(rowIndex);
+          setHistory(historyData || []);
+        } catch (error) {
+          console.error('Failed to load history:', error);
+          setHistory([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadHistory();
+    }, [rowIndex, fetchHistory]);
+  
+    const formatTimestamp = (timestamp) => {
+      return new Date(timestamp).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+  
+    if (loading) {
+      return (
+        <div className="text-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+          <span className="text-sm text-gray-600 mt-2">Loading history...</span>
+        </div>
+      );
+    }
+  
+    if (history.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <History className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">No history available for this row</p>
+        </div>
+      );
+    }
+  
+    const dataColumns = columns.filter(col => col.type !== 'action' && col.type !== 'status');
+  
+    return (
+      <div className="space-y-4">
+        <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+          <div className="space-y-3 p-4">
+            {history.map((version, versionIndex) => {
+              const changedFields = version.changed_fields || [];
+  
+              return (
+                <div key={version.id || versionIndex} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-medium text-sm text-blue-700">
+                          {versionIndex === 0 ? 'Current' : `Version -${versionIndex}`}
+                        </span>
+                        <span className="text-sm text-gray-600 flex items-center">
+                          <User className="w-4 h-4 mr-1" />
+                          {version.user_display_name || version.user_email}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {formatTimestamp(version.timestamp)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {changedFields.length} changes
+                        </span>
+                        {version.git_hash && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-mono">
+                            {version.git_hash.substring(0, 8)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+  
+                  <div className="p-4 overflow-x-auto">
+                    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${dataColumns.length}, minmax(150px, 1fr))` }}>
+                      {dataColumns.map((col) => (
+                        <div key={col.id} className="text-xs font-medium text-gray-500 pb-1">
+                          {col.name}
+                        </div>
+                      ))}
+                      {dataColumns.map((col) => {
+                        const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
+                        const cellValue = version.full_row_data?.[fieldName] || '';
+                        const isChanged = changedFields.includes(fieldName);
+  
+                        return (
+                          <div key={`${col.id}-data`} className="relative">
+                            <div className={`p-2 border rounded text-sm min-h-8 ${
+                              isChanged 
+                                ? 'bg-purple-50 border-purple-200 text-purple-900' 
+                                : 'bg-gray-50 border-gray-200'
+                            }`}>
+                              {col.type === 'number' && cellValue ? (
+                                <span>
+                                  {col.validation === 'currency' ? 
+                                    `€${Number(cellValue).toLocaleString()}` : 
+                                    cellValue
+                                  }
+                                </span>
+                              ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
+                                <span className="font-mono text-sm">
+                                  {cellValue ? `**** **** **** ${cellValue.slice(-4)}` : ''}
+                                </span>
+                              ) : (
+                                cellValue || <span className="text-gray-400 italic">empty</span>
+                              )}
+                            </div>
+                            
+                            {isChanged && (
+                              <div className="absolute -top-1 -right-1">
+                                <span className="inline-block w-3 h-3 bg-purple-500 rounded-full" 
+                                      title="This field was changed"></span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   // 🔧 FIXED: Load current data for existing workbooks
   const loadCurrentWorkbookData = async () => {
@@ -347,178 +850,7 @@ useEffect(() => {
     console.log('📊 Created blank spreadsheet: 10 columns × 100 rows');
   };
 
-// NEW: Enhanced Row History Viewer Component - Mirror Column Layout
-const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadHistory = async () => {
-      setLoading(true);
-      const historyData = await fetchHistory(rowIndex);
-      setHistory(historyData);
-      setLoading(false);
-    };
-    loadHistory();
-  }, [rowIndex]);
-
-  const getChangedFields = (current, previous) => {
-    if (!previous) return Object.keys(current || {});
-    
-    const changed = [];
-    Object.keys(current || {}).forEach(key => {
-      if (current[key] !== previous[key]) {
-        changed.push(key);
-      }
-    });
-    return changed;
-  };
-
-  const formatTimestamp = (timestamp) => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (loading) {
-    return <div className="text-center py-4">Loading history...</div>;
-  }
-
-  // let content determine height with limits
-  const recordCount = history.length;
-  const needsScroll = recordCount > 5;
-  const maxHeight = needsScroll ? '600px' : 'none';
-  
-
-  // Get data columns (exclude action columns - last 2)
-  const dataColumns = columns.filter(col => col.type !== 'action' && col.type !== 'status');
-
-  return (
-    <div className="space-y-4">
-      {/* Dynamic Height Scrollable Container */}
-      <div 
-        className={`border border-gray-200 rounded-lg ${needsScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
-        style={{ 
-          maxHeight: maxHeight,
-          minHeight: needsScroll ? '400px' : 'auto' // ← Add minimum height for scroll
-        }}
-      >
-        <div className="space-y-3 p-4">
-          {history.map((version, versionIndex) => {
-            const previousVersion = history[versionIndex + 1];
-            const changedFields = getChangedFields(
-              version.full_row_data, 
-              previousVersion?.full_row_data
-            );
-
-            return (
-              <div key={version.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                {/* Version Header */}
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-medium text-sm text-blue-700">
-                        {versionIndex === 0 ? 'Current' : `Version -${versionIndex}`}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        by {version.user_display_name || version.user_email}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {formatTimestamp(version.timestamp)}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {changedFields.length} changes
-                      </span>
-                      {version.git_hash && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-mono">
-                          {version.git_hash.substring(0, 8)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Full Row Display - MIRRORS SPREADSHEET LAYOUT */}
-                <div className="p-4 overflow-x-auto">
-                  {/* Create a table structure that mirrors the main spreadsheet */}
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        {dataColumns.map((col) => (
-                          <th 
-                            key={col.id}
-                            className="text-left text-xs font-medium text-gray-500 pb-2 pr-2"
-                            style={{ width: col.width || 150 }}
-                          >
-                            {col.name}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        {dataColumns.map((col, colIndex) => {
-                          const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
-                          const cellValue = version.full_row_data?.[fieldName] || '';
-                          const isChanged = changedFields.includes(fieldName);
-
-                          return (
-                            <td 
-                              key={col.id} 
-                              className="relative pr-2"
-                              style={{ width: col.width || 150 }}
-                            >
-                              {/* Cell Value - PURPLE COLORS - MIRRORS MAIN SPREADSHEET */}
-                              <div className={`p-2 border rounded text-sm min-h-8 ${
-                                isChanged 
-                                  ? 'bg-purple-50 border-purple-200 text-purple-900' 
-                                  : 'bg-gray-50 border-gray-200'
-                              }`}>
-                                {/* Handle different column types like the main spreadsheet */}
-                                {col.type === 'number' && cellValue ? (
-                                  <span>
-                                    {col.validation === 'currency' ? 
-                                      `€${Number(cellValue).toLocaleString()}` : 
-                                      cellValue
-                                    }
-                                  </span>
-                                ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
-                                  <span className="font-mono text-sm">
-                                    {cellValue ? `**** **** **** ${cellValue.slice(-4)}` : ''}
-                                  </span>
-                                ) : (
-                                  cellValue || <span className="text-gray-400 italic">empty</span>
-                                )}
-                              </div>
-                              
-                              {/* Change Indicator - PURPLE */}
-                              {isChanged && (
-                                <div className="absolute -top-1 -right-1">
-                                  <span className="inline-block w-3 h-3 bg-purple-500 rounded-full" 
-                                        title="This field was changed"></span>
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 
   
@@ -818,14 +1150,13 @@ const RowHistoryViewer = ({ rowIndex, columns, fetchHistory }) => {
   };
 
   // Event handlers
-  const handleDoubleClick = (rowIndex, colIndex) => {
-    // Check if column is actually an action/status column, not by position
+  const handleDoubleClick = useCallback((rowIndex, colIndex) => {
     const column = columns[colIndex];
     if (column && (column.type === 'action' || column.type === 'status')) return;
     
     setEditingCell(`${rowIndex}-${colIndex}`);
     setEditValue(String(data[rowIndex]?.[colIndex] || ''));
-  };
+  }, [columns, data]);
 
 // 🆕 ADD THIS NEW FUNCTION
 const saveCurrentCell = async (rowIndex, colIndex) => {
@@ -845,21 +1176,37 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
       return false; // Validation failed
     }
     
-    // Update local state
+    // Update local state IMMEDIATELY for responsive UI
     const newData = [...data];
     newData[rowIndex] = newData[rowIndex] || [];
     newData[rowIndex][colIndex] = editValue;
     setData(newData);
     
-    // Mark row as having pending changes
+    // Mark row as having pending changes (immediate UI feedback)
     const newPendingChanges = new Set(pendingChanges);
     newPendingChanges.add(rowIndex);
     setPendingChanges(newPendingChanges);
     
-    // 🚀 TRIGGER PYTHON FUNCTION
-    await triggerPythonFunction(rowIndex, newData[rowIndex], 'cell_update');
-    
-    return true; // Save successful
+    // 🚀 NEW: DEBOUNCED SAVE - Don't spam the backend
+    const changeKey = `${rowIndex}-${colIndex}`;
+    pendingChangesRef.current.set(changeKey, {
+      rowIndex,
+      colIndex,
+      value: editValue,
+      rowData: newData[rowIndex]
+    });
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout - save after user stops typing
+    saveTimeoutRef.current = setTimeout(async () => {
+      await flushPendingChanges();
+    }, 500); // Wait 500ms after user stops typing
+
+    return true; // Save queued successfully
     
   } catch (error) {
     console.error('Error in cell update:', error);
@@ -867,11 +1214,62 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
   }
 };
 
+const flushPendingChanges = async () => {
+  const changes = Array.from(pendingChangesRef.current.values());
+  pendingChangesRef.current.clear();
+
+  if (changes.length === 0) return;
+
+  try {
+    console.log(`🚀 Saving ${changes.length} debounced changes...`);
+
+    if (changes.length === 1) {
+      // Single change - use existing backend endpoint
+      const change = changes[0];
+      await triggerPythonFunction(change.rowIndex, change.rowData, 'cell_update');
+    } else {
+      // Multiple changes - batch them for efficiency
+      await batchSaveChanges(changes);
+    }
+
+    console.log(`✅ Successfully saved ${changes.length} changes`);
+    
+  } catch (error) {
+    console.error('❌ Failed to save changes:', error);
+    setValidationMessage(`❌ Failed to save changes: ${error.message}`);
+    setShowValidationPopup(true);
+    setTimeout(() => setShowValidationPopup(false), 4000);
+  }
+};
+
+const batchSaveChanges = async (changes) => {
+  try {
+    // Group changes by row to avoid duplicate saves
+    const rowGroups = {};
+    changes.forEach(change => {
+      rowGroups[change.rowIndex] = change.rowData;
+    });
+
+    // Save each unique row
+    const savePromises = Object.entries(rowGroups).map(([rowIndex, rowData]) => 
+      triggerPythonFunction(parseInt(rowIndex), rowData, 'batch_update')
+    );
+
+    await Promise.all(savePromises);
+    console.log(`✅ Batch saved changes for ${Object.keys(rowGroups).length} rows`);
+    
+  } catch (error) {
+    console.error('❌ Batch save failed:', error);
+    throw error;
+  }
+};
+
+
 
   // 🎯 TRIGGER POINT 1: When user finishes editing a cell
   const handleKeyPress = async (e, rowIndex, colIndex) => {
     if (e.key === 'Enter') {
-      const saved = await saveCurrentCell(rowIndex, colIndex);
+      const saved = await saveCurrentCell(rowIndex, colIndex); // Uses debounced version
       if (saved) {
         setEditingCell(null);
         setEditValue('');
@@ -881,7 +1279,7 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
       setEditValue('');
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      const saved = await saveCurrentCell(rowIndex, colIndex);
+      const saved = await saveCurrentCell(rowIndex, colIndex); // Uses debounced version
       if (saved) {
         setEditingCell(null);
         setEditValue('');
@@ -1361,241 +1759,29 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
 
           {/* Spreadsheet Container */}
           {columns.length > 0 && (
-            <div className="overflow-auto">
-              <table className="w-full border-collapse bg-white">
-                {/* Header Row */}
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="w-12 border border-gray-300 p-2 text-center text-sm font-medium text-gray-700">#</th>
-                    {columns.map((col, index) => (
-                      <th 
-                        key={col.id} 
-                        className="border border-gray-300 p-2 text-left text-sm font-medium text-gray-700 group hover:bg-gray-200 cursor-pointer"
-                        style={{ width: col.width }}
-                        onClick={() => {
-                          openColumnConfig(col);
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            {React.createElement(getTypeIcon(col.type), { className: 'w-4 h-4 text-gray-500' })}
-                            <span>{col.name || `Column ${col.id}`}</span>
-                            {col.required && (
-                              <span className="text-red-500 text-xs font-bold">*</span>
-                            )}
-                            {col.sensitivity && col.sensitivity !== 'Standard' && (
-                              <span className={`text-xs px-2 py-1 rounded-full ${getSensitivityColor(col.sensitivity)}`}>
-                                {col.sensitivity}
-                              </span>
-                            )}
-                          </div>
-                          <Edit3 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                        </div>
-                      </th>
-                    ))}
-                    <th className="border border-gray-300 p-2 w-12">
-                      <button 
-                        onClick={addNewColumn}
-                        className="w-full h-full flex items-center justify-center text-gray-400 hover:text-gray-600"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-
-                {/* Data Rows */}
-                <tbody>
-                  {data.map((row, rowIndex) => (
-                    <React.Fragment key={rowIndex}>
-                      <tr className="hover:bg-gray-50">
-                        <td className="border border-gray-300 p-1 text-center bg-gray-50">
-                          <button
-                            onClick={() => {
-                              setSelectedRowHistory(selectedRowHistory === rowIndex ? null : rowIndex);
-                            }}
-                            className={`w-8 h-6 text-xs font-medium rounded transition-colors ${
-                              selectedRowHistory === rowIndex
-                                ? 'bg-blue-500 text-white'
-                                : getRowHistory(rowIndex).length > 0
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                            }`}
-                          >
-                            {rowIndex + 1}
-                          </button>
-                        </td>
-                        {columns.map((col, colIndex) => (
-                          <td 
-                            key={`${rowIndex}-${colIndex}`}
-                            className={`border border-gray-300 p-2 text-sm cursor-cell relative ${
-                              selectedCell === `${rowIndex}-${colIndex}` ? 'bg-blue-100 border-blue-500' : ''
-                            } ${
-                              editingCell === `${rowIndex}-${colIndex}` ? 'bg-yellow-100 border-yellow-500' : ''
-                            } ${
-                              getFieldValidationStatus(rowIndex, colIndex) === 'error' ? 'border-purple-300 bg-purple-50' :
-                              getFieldValidationStatus(rowIndex, colIndex) === 'warning' ? 'border-yellow-300 bg-yellow-50' :
-                              getFieldValidationStatus(rowIndex, colIndex) === 'success' ? 'border-green-300 bg-green-50' : ''
-                            }`}
-                            onClick={() => setSelectedCell(`${rowIndex}-${colIndex}`)}
-                            onDoubleClick={() => {
-                              const column = columns[colIndex];
-                              if (column && column.type !== 'action' && column.type !== 'status') {
-                                handleDoubleClick(rowIndex, colIndex);
-                              }
-                            }}
-                            
-                          >
-                            {editingCell === `${rowIndex}-${colIndex}` ? (
-                              <input
-                                type="text"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={(e) => handleKeyPress(e, rowIndex, colIndex)}
-                                onBlur={async () => {
-                                  const [currentRowIndex, currentColIndex] = editingCell.split('-').map(Number);
-                                  await saveCurrentCell(currentRowIndex, currentColIndex);
-                                  setEditingCell(null);
-                                  setEditValue('');
-                                }}
-                                className="w-full bg-transparent border-0 outline-none p-0 text-sm"
-                                autoFocus
-                              />
-                            ) : col.type === 'boolean' ? (
-                              <input 
-                                type="checkbox" 
-                                checked={row[colIndex] || false}
-                                className="w-4 h-4"
-                              />
-                            ) : col.sensitivity === 'PCI' && col.validation === 'creditcard' ? (
-                              renderCellWithGitInfo(rowIndex, colIndex, 
-                                <span className="font-mono text-sm">
-                                  {maskCreditCard(row[colIndex])}
-                                </span>
-                              )
-                            ) : col.type === 'action' ? (
-                              <div className="flex items-center justify-center">
-                                {pendingChanges.has(rowIndex) ? (
-                                  <button
-                                    onClick={() => sendForValidation(rowIndex)}
-                                    className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors"
-                                  >
-                                    Send
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-gray-400">—</span>
-                                )}
-                              </div>
-                            ) : col.type === 'status' ? (
-                              <div className="flex items-center justify-between">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCustomerValidationStatus(rowIndex).color}`}>
-                                  <span className="mr-1">{getCustomerValidationStatus(rowIndex).icon}</span>
-                                  {getCustomerValidationStatus(rowIndex).label}
-                                </span>
-                                {validationStatus[rowIndex] === false && (
-                                  <button
-                                    onClick={() => simulateCustomerApproval(rowIndex)}
-                                    className="text-xs text-blue-600 hover:text-blue-800 underline ml-2"
-                                    title="Simulate customer approval"
-                                  >
-                                    Approve
-                                  </button>
-                                )}
-                              </div>
-                            ) : col.type === 'number' && row[colIndex] ? (
-                              renderCellWithGitInfo(rowIndex, colIndex,
-                                <span>
-                                  {col.validation === 'currency' ? 
-                                    `€${Number(row[colIndex]).toLocaleString()}` : 
-                                    row[colIndex]
-                                  }
-                                </span>
-                              )
-                            ) : (
-                              <span>{row[colIndex] || ''}</span>
-                            )}
-                          </td>
-                        ))}
-                        <td className="border border-gray-300 p-2"></td>
-                      </tr>
-                      
-                      {/* Row History Dropdown */}
-                      {selectedRowHistory === rowIndex && (
-                        <tr>
-                          <td colSpan={columns.length + 2} className="p-0 border-0">
-                            <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mx-2 mb-2 rounded shadow-lg">
-                              <div className="flex items-center justify-between mb-4">
-                                <h4 className="font-semibold text-lg text-gray-900 flex items-center">
-                                  <History className="w-5 h-5 mr-2 text-blue-600" />
-                                  Row History: {row[0] || `Row ${rowIndex + 1}`}
-                                </h4>
-                                <button 
-                                  onClick={() => setSelectedRowHistory(null)}
-                                  className="text-gray-400 hover:text-gray-600 text-xl font-bold px-3 py-1 hover:bg-gray-200 rounded"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                              
-                              <RowHistoryViewer 
-                                rowIndex={rowIndex} 
-                                columns={columns}
-                                fetchHistory={fetchRowHistory}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      )}                                
-                    </React.Fragment>
-                  ))}
-                  
-                  {/* Empty rows for expansion */}
-                  {Array.from({ length: 1 }, (_, index) => {
-                    const rowIndex = data.length + index;
-                    const isActive = activeRows.has(rowIndex);
-                    
-                    return (
-                      <tr key={`empty-${index}`} className={`hover:bg-gray-50 ${isActive ? 'bg-blue-50' : ''}`}>
-                        <td className="border border-gray-300 p-1 text-center bg-gray-50">
-                          <button
-                            onClick={() => {
-                              if (!isActive) {
-                                activateRow(rowIndex);
-                              }
-                            }}
-                            className={`w-8 h-6 text-xs font-medium rounded transition-colors ${
-                              isActive
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-200 text-gray-400 hover:bg-blue-300 hover:text-blue-700'
-                            }`}
-                          >
-                            {rowIndex + 1}
-                          </button>
-                        </td>
-                        {columns.map((col, colIndex) => (
-                          <td 
-                            key={`empty-${index}-${colIndex}`}
-                            className={`border border-gray-300 p-2 text-sm ${
-                              isActive && col.type !== 'action' && col.type !== 'status' 
-                                ? 'cursor-cell' 
-                                : 'cursor-not-allowed bg-gray-50'
-                            }`}
-                            onClick={() => {
-                              if (isActive && col.type !== 'action' && col.type !== 'status') {
-                                setSelectedCell(`${rowIndex}-${colIndex}`);
-                              }
-                            }}
-                          >
-                            {/* Empty cell content */}
-                          </td>
-                        ))}
-                      <td className="border border-gray-300 p-2"></td>
-                    </tr>
-                  );
-                })}
-                </tbody>
-              </table>
-            </div>
+            <VirtualizedTable
+            data={data}
+            columns={columns}
+            onCellEdit={handleDoubleClick}
+            editingCell={editingCell}
+            editValue={editValue}
+            setEditValue={setEditValue}
+            onKeyPress={handleKeyPress}
+            selectedCell={selectedCell}
+            setSelectedCell={setSelectedCell}
+            validationStatus={validationStatus}
+            pendingChanges={pendingChanges}
+            businessActions={businessActions}
+            gitHashes={gitHashes}
+            sendForValidation={sendForValidation}
+            simulateCustomerApproval={simulateCustomerApproval}
+            getCustomerValidationStatus={getCustomerValidationStatus}
+            maskCreditCard={maskCreditCard}
+            fetchRowHistory={fetchRowHistory}
+            selectedRowHistory={selectedRowHistory}
+            setSelectedRowHistory={setSelectedRowHistory}
+            getRowHistory={getRowHistory}
+          />
           )}
         </div>
       </div>
@@ -1684,3 +1870,4 @@ const saveCurrentCell = async (rowIndex, colIndex) => {
     </div>
   );
 }
+

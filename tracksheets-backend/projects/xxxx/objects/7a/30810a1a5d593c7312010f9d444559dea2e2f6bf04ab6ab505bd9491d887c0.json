@@ -1,0 +1,33 @@
+{
+  "row_index": 9,
+  "data": {
+    "ordernumber": 10211,
+    "quantityordered": 41,
+    "priceeach": 100000,
+    "orderlinenumber": 14,
+    "sales": 4708.44,
+    "orderdate": "1/15/2004 0:00",
+    "status": "Shipped",
+    "qtr_id": 1,
+    "month_id": 1,
+    "year_id": 2004,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Auto Canal Petit",
+    "phone": "(1) 47.55.6555",
+    "addressline1": "25, rue Lauriston",
+    "addressline2": "",
+    "city": "Paris",
+    "state": "",
+    "postalcode": 75016,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Perrier",
+    "contactfirstname": "Dominique",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T22:20:58.954668",
+  "user_email": "current-user"
+}

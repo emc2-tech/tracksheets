@@ -1,0 +1,18 @@
+{
+  "id": "80dd11444cbe",
+  "name": "xxxx",
+  "template": "Imported CSV",
+  "category": "Imported",
+  "version": "1.0",
+  "created_at": "2025-06-30T22:20:23.722166",
+  "updated_at": "2025-06-30T22:20:23.722171",
+  "created_by": "csv-import@user.com",
+  "settings": {
+    "auto_backup": true,
+    "validation_required": true,
+    "git_tracking": true,
+    "email_notifications": true
+  },
+  "schema_version": "1.0",
+  "database_version": "1.0"
+}

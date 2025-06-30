@@ -1,0 +1,33 @@
+{
+  "row_index": 69,
+  "data": {
+    "ordernumber": 10285,
+    "quantityordered": 47,
+    "priceeach": 100,
+    "orderlinenumber": "900",
+    "sales": 6484.59,
+    "orderdate": "8/27/2004 0:00",
+    "status": "Shipped",
+    "qtr_id": 3,
+    "month_id": 8,
+    "year_id": 2004,
+    "productline": "Motorcycles",
+    "msrp": 118,
+    "productcode": "S10_2016",
+    "customername": "Marta's Replicas Co.",
+    "phone": 6175558555,
+    "addressline1": "39323 Spinnaker Dr.",
+    "addressline2": "",
+    "city": "Cambridge",
+    "state": "MA",
+    "postalcode": 51247,
+    "country": 0,
+    "territory": "NA",
+    "contactlastname": "Hernandez",
+    "contactfirstname": "Marta",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T21:40:57.842929",
+  "user_email": "current-user"
+}

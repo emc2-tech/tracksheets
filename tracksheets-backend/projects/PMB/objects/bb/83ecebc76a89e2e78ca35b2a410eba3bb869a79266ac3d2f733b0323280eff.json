@@ -1,0 +1,11 @@
+{
+  "row_index": 0,
+  "data": {
+    "category": "",
+    "budgeted_amount": "",
+    "actual_amount": ""
+  },
+  "action_type": "row_created",
+  "timestamp": "2025-06-25T19:52:46.550796",
+  "user_email": "current-user"
+}

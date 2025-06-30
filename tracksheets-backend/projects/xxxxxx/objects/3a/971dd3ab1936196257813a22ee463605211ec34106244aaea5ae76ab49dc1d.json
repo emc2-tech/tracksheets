@@ -1,0 +1,33 @@
+{
+  "row_index": 6,
+  "data": {
+    "ordernumber": 10180,
+    "quantityordered": 29,
+    "priceeach": 86.13,
+    "orderlinenumber": 9,
+    "sales": 2497.77,
+    "orderdate": "11/11/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": "40",
+    "month_id": 11,
+    "year_id": 2003,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Daedalus Designs Imports",
+    "phone": "20.16.1555",
+    "addressline1": "184, chausse de Tournai",
+    "addressline2": "",
+    "city": "Lille",
+    "state": "",
+    "postalcode": 59000,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Rance",
+    "contactfirstname": "Martine",
+    "dealsize": "Small"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T22:45:29.224812",
+  "user_email": "current-user"
+}

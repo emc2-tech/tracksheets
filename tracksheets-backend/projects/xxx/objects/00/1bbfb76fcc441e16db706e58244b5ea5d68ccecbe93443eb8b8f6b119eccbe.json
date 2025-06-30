@@ -1,0 +1,33 @@
+{
+  "row_index": 43,
+  "data": {
+    "ordernumber": 10304,
+    "quantityordered": 47,
+    "priceeach": 1000,
+    "orderlinenumber": 6,
+    "sales": 10172.7,
+    "orderdate": "10/11/2004 0:00",
+    "status": "Shipped",
+    "qtr_id": 4,
+    "month_id": 10,
+    "year_id": 2004,
+    "productline": "Classic Cars",
+    "msrp": 214,
+    "productcode": "S10_1949",
+    "customername": "Auto Assoc. & Cie.",
+    "phone": "30.59.8555",
+    "addressline1": "67, avenue de l'Europe",
+    "addressline2": "",
+    "city": "Versailles",
+    "state": "",
+    "postalcode": 78000,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Tonini",
+    "contactfirstname": "Daniel",
+    "dealsize": "Large"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T21:35:30.320104",
+  "user_email": "current-user"
+}

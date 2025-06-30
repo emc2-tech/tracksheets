@@ -1,0 +1,33 @@
+{
+  "row_index": 7,
+  "data": {
+    "ordernumber": 10188,
+    "quantityordered": 48,
+    "priceeach": 100,
+    "orderlinenumber": "1000",
+    "sales": 5512.32,
+    "orderdate": "11/18/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": 4,
+    "month_id": 11,
+    "year_id": 2003,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Herkku Gifts",
+    "phone": "+47 2267 3215",
+    "addressline1": "Drammen 121, PR 744 Sentrum",
+    "addressline2": "",
+    "city": "Bergen",
+    "state": "",
+    "postalcode": "N 5804",
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Oeztan",
+    "contactfirstname": "Veysel",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T23:03:14.534925",
+  "user_email": "current-user"
+}

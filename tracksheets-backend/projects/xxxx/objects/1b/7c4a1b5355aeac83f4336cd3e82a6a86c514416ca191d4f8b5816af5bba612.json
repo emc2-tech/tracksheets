@@ -1,0 +1,33 @@
+{
+  "row_index": 49,
+  "data": {
+    "ordernumber": 10369,
+    "quantityordered": 4100,
+    "priceeach": 100,
+    "orderlinenumber": 2,
+    "sales": 4514.92,
+    "orderdate": "1/20/2005 0:00",
+    "status": "Shipped",
+    "qtr_id": 1,
+    "month_id": 1,
+    "year_id": 2005,
+    "productline": "Classic Cars",
+    "msrp": 214,
+    "productcode": "S10_1949",
+    "customername": "Collectables For Less Inc.",
+    "phone": 6175558555,
+    "addressline1": "7825 Douglas Av.",
+    "addressline2": "",
+    "city": "Brickhaven",
+    "state": "MA",
+    "postalcode": 58339,
+    "country": 0,
+    "territory": "NA",
+    "contactlastname": "Nelson",
+    "contactfirstname": "Allen",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T22:23:34.096564",
+  "user_email": "current-user"
+}

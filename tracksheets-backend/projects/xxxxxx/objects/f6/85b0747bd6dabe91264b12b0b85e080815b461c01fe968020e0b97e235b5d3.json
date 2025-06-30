@@ -1,0 +1,33 @@
+{
+  "row_index": 8,
+  "data": {
+    "ordernumber": 10201,
+    "quantityordered": 22,
+    "priceeach": 98.57,
+    "orderlinenumber": 2,
+    "sales": 2168.54,
+    "orderdate": "12/1/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": "400000",
+    "month_id": 12,
+    "year_id": 2003,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Mini Wheels Co.",
+    "phone": 6505555787,
+    "addressline1": "5557 North Pendale Street",
+    "addressline2": "",
+    "city": "San Francisco",
+    "state": "CA",
+    "postalcode": "",
+    "country": 0,
+    "territory": "NA",
+    "contactlastname": "Murphy",
+    "contactfirstname": "Julie",
+    "dealsize": "Small"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T22:46:52.217614",
+  "user_email": "current-user"
+}

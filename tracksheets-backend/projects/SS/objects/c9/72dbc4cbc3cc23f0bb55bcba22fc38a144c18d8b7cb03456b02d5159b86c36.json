@@ -1,0 +1,33 @@
+{
+  "row_index": 113,
+  "data": {
+    "ordernumber": 10186,
+    "quantityordered": 26,
+    "priceeach": 1000,
+    "orderlinenumber": 9,
+    "sales": 3854.24,
+    "orderdate": "11/14/2003 0:00",
+    "status": "Shipped",
+    "qtr_id": 4,
+    "month_id": 11,
+    "year_id": 2003,
+    "productline": "Classic Cars",
+    "msrp": 136,
+    "productcode": "S10_4757",
+    "customername": "Double Decker Gift Stores, Ltd",
+    "phone": "(171) 555-7555",
+    "addressline1": "120 Hanover Sq.",
+    "addressline2": "",
+    "city": "London",
+    "state": "",
+    "postalcode": "WA1 1DP",
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Hardy",
+    "contactfirstname": "Thomas",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-24T23:02:20.483407",
+  "user_email": "current-user"
+}

@@ -1,0 +1,33 @@
+{
+  "row_index": 20,
+  "data": {
+    "ordernumber": 10341,
+    "quantityordered": 41,
+    "priceeach": 10000,
+    "orderlinenumber": 9,
+    "sales": 7737.93,
+    "orderdate": "11/24/2004 0:00",
+    "status": "Shipped",
+    "qtr_id": 4,
+    "month_id": 11,
+    "year_id": 2004,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Salzburg Collectables",
+    "phone": "6562-9555",
+    "addressline1": "Geislweg 14",
+    "addressline2": "",
+    "city": "Salzburg",
+    "state": "",
+    "postalcode": 5020,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Pipps",
+    "contactfirstname": "Georg",
+    "dealsize": "Large"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-25T19:56:05.140896",
+  "user_email": "current-user"
+}

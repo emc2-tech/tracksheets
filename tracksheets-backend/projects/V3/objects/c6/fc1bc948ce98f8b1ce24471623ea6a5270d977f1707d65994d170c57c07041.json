@@ -1,0 +1,33 @@
+{
+  "row_index": 12,
+  "data": {
+    "ordernumber": 10251,
+    "quantityordered": 28,
+    "priceeach": 100,
+    "orderlinenumber": 2,
+    "sales": 3188.64,
+    "orderdate": "5/18/2004 0:00",
+    "status": "Shipped",
+    "qtr_id": 2,
+    "month_id": 5,
+    "year_id": 2004,
+    "productline": "Motorcycles",
+    "msrp": 95,
+    "productcode": "S10_1678",
+    "customername": "Gifts for all Incorporated ",
+    "phone": 2015559350,
+    "addressline1": "7476 Moss Rd.",
+    "addressline2": "",
+    "city": "Newark",
+    "state": "NJ",
+    "postalcode": 94019,
+    "country": 0,
+    "territory": "NA",
+    "contactlastname": "Brown",
+    "contactfirstname": "William",
+    "dealsize": "Medium"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-30T23:09:49.266944",
+  "user_email": "current-user"
+}

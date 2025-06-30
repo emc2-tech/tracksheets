@@ -1,0 +1,99 @@
+{
+  "type": "column_configuration",
+  "columns": [
+    {
+      "id": "A",
+      "name": "Name",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "B",
+      "name": "Last Name",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "C",
+      "name": "Column C",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "D",
+      "name": "Column D",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "E",
+      "name": "Column E",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "F",
+      "name": "Column F",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "G",
+      "name": "Column G",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "H",
+      "name": "Column H",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "I",
+      "name": "Column I",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    },
+    {
+      "id": "J",
+      "name": "Column J",
+      "type": "text",
+      "width": 120,
+      "sensitivity": "Standard",
+      "required": false,
+      "validation": "text"
+    }
+  ],
+  "action_type": "column_update",
+  "timestamp": "2025-06-25T19:54:04.002357",
+  "user_email": "frontend@user.com",
+  "workbook_name": "New_Wed"
+}

@@ -1,0 +1,33 @@
+{
+  "row_index": 53,
+  "data": {
+    "ordernumber": 10424,
+    "quantityordered": 50,
+    "priceeach": 100,
+    "orderlinenumber": 6,
+    "sales": 12001,
+    "orderdate": "5/31/2005 0:00",
+    "status": "",
+    "qtr_id": 2,
+    "month_id": 5,
+    "year_id": 2005,
+    "productline": "Classic Cars",
+    "msrp": 214,
+    "productcode": "S10_1949",
+    "customername": "Euro Shopping Channel",
+    "phone": "(91) 555 94 44",
+    "addressline1": "C/ Moralzarzal, 86",
+    "addressline2": "",
+    "city": "Madrid",
+    "state": "",
+    "postalcode": 28034,
+    "country": 0,
+    "territory": "EMEA",
+    "contactlastname": "Freyre",
+    "contactfirstname": "Diego",
+    "dealsize": "Large"
+  },
+  "action_type": "cell_update",
+  "timestamp": "2025-06-24T23:07:55.124416",
+  "user_email": "current-user"
+}
